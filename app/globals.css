@@ -1,0 +1,60 @@
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%;background:var(--avatar);font-family:"Noto Sans SC","Space Grotesk",-apple-system,system-ui,sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+button{font-family:inherit}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:#CDD2DC;border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-thumb:hover{background:#B6BCC9;background-clip:padding-box}
+::-webkit-scrollbar-track{background:transparent}
+::selection{background:rgba(45,91,255,.2)}
+
+@media (max-width:760px){
+  .bo-aside{display:none !important}
+  .bo-burger{display:flex !important}
+  .bo-hide-m{display:none !important}
+  .bo-scroll{padding:16px 13px 40px !important}
+  .bo-h-pad{padding-left:14px !important;padding-right:14px !important}
+  .bo-col2{grid-template-columns:1fr !important}
+  .bo-flexcol{flex-direction:column !important}
+  .bo-flexcol > div{max-width:none !important;min-width:0 !important;width:100% !important;flex-basis:auto !important}
+  .bo-wrap{flex-wrap:wrap !important;gap:12px !important}
+  .bo-drawer.open{display:block !important}
+}
+@keyframes boFadeUp{from{opacity:0;transform:translateY(11px)}to{opacity:1;transform:none}}
+@keyframes boFadeIn{from{opacity:0}to{opacity:1}}
+@keyframes boGrowX{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes boSlideX{from{transform:translateX(-100%)}to{transform:translateX(0)}}
+@keyframes boDraw{to{stroke-dashoffset:0}}
+.bo-enter{animation:boFadeUp .46s cubic-bezier(.22,.61,.36,1) both}
+.bo-stagger>*{animation:boFadeUp .5s cubic-bezier(.22,.61,.36,1) both}
+.bo-stagger>*:nth-child(1){animation-delay:.03s}
+.bo-stagger>*:nth-child(2){animation-delay:.08s}
+.bo-stagger>*:nth-child(3){animation-delay:.13s}
+.bo-stagger>*:nth-child(4){animation-delay:.18s}
+.bo-stagger>*:nth-child(5){animation-delay:.23s}
+.bo-stagger>*:nth-child(6){animation-delay:.28s}
+.bo-stagger>*:nth-child(7){animation-delay:.33s}
+.bo-stagger>*:nth-child(8){animation-delay:.38s}
+.bo-stagger>*:nth-child(9){animation-delay:.43s}
+.bo-stagger>*:nth-child(10){animation-delay:.48s}
+.bo-card{transition:transform .2s cubic-bezier(.22,.61,.36,1), box-shadow .2s ease}
+.bo-card:hover{transform:translateY(-3px);box-shadow:0 10px 26px rgba(20,26,45,.09)}
+.bo-th, .bo-th *{transition:background-color .32s ease, border-color .32s ease}
+.bo-backdrop{animation:boFadeIn .28s ease}
+.bo-panel{animation:boSlideX .3s cubic-bezier(.22,.61,.36,1)}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.001s !important;animation-delay:0s !important}}
+.bo-aside{width:246px;flex:none;overflow:hidden;transition:width .38s cubic-bezier(.5,.05,.2,1),opacity .32s ease,transform .38s cubic-bezier(.5,.05,.2,1),background-color .3s ease,border-color .3s ease}
+.bo-aside-collapsed{width:76px}
+.bo-aside-hidden{width:0;opacity:0;transform:translateX(-16px);pointer-events:none;border-right-color:transparent}
+.bo-nav-txt,.bo-logo-txt,.bo-streak{transition:opacity .18s ease}
+.bo-aside-collapsed .bo-nav-txt,.bo-aside-collapsed .bo-logo-txt,.bo-aside-collapsed .bo-streak{opacity:0;pointer-events:none}
+.bo-aside-collapsed .bo-nav-sec{height:0 !important;padding:8px 0 0 !important;margin:0 !important;overflow:hidden}
+.bo-collapse-ico{transition:transform .38s cubic-bezier(.5,.05,.2,1)}
+.bo-aside-collapsed .bo-collapse-ico{transform:rotate(180deg)}
+
+/* hover helpers (design used inline style-hover; reproduced as CSS utility hooks) */
+.bo-rail-item:hover{background:var(--rail-hover)}
+.bo-icon-btn:hover{background:var(--surface-2)}
+.bo-search-box:hover{border-color:#D3D7DF}
+.bo-avatar-row:hover{opacity:.82}
+.bo-topnav-link:hover{color:var(--ink)}
+button.bo-btn{cursor:pointer}
