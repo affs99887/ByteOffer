@@ -1,5 +1,6 @@
 "use client";
 import { useApp } from "@/lib/app-context";
+import { AnswerFieldByType } from "@/components/qbank/answer-field";
 
 export function PracticeScreen() {
   const v = useApp();
@@ -14,11 +15,16 @@ export function PracticeScreen() {
             <div style={{ fontFamily: "'Space Grotesk','Noto Sans SC',sans-serif", fontSize: '15px', fontWeight: 700, color: 'var(--ink)', marginBottom: '6px' }}>筛选条件</div>
 
             <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink2)', margin: '16px 0 8px' }}>题型</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', maxHeight: '288px', overflowY: 'auto' }}>
               {v.pfTypeList.map((t, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '7px 4px', cursor: 'pointer', borderRadius: '7px' }} onClick={t.go}>
-                  <span style={t.box}>{t.on && (<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4 4 10-10" /></svg>)}</span>
-                  <span style={{ fontSize: '13.5px', color: 'var(--ink)', fontWeight: 500 }}>{t.k}</span>
+                <div key={t.k}>
+                  {(i === 0 || v.pfTypeList[i - 1].group !== t.group) && (
+                    <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: '9.5px', letterSpacing: '.12em', color: 'var(--ink3)', fontWeight: 600, margin: i === 0 ? '2px 0 4px' : '10px 0 4px' }}>{t.group}</div>
+                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '7px 4px', cursor: t.disabled ? 'not-allowed' : 'pointer', borderRadius: '7px', opacity: t.disabled ? 0.45 : 1 }} onClick={t.go}>
+                    <span style={t.box}>{t.on && (<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4 4 10-10" /></svg>)}</span>
+                    <span style={{ fontSize: '13.5px', color: 'var(--ink)', fontWeight: 500 }}>{t.label}</span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -63,21 +69,13 @@ export function PracticeScreen() {
 
             <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--ink)', lineHeight: 1.55, marginBottom: '22px' }}>{v.pQ.q}</div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {v.pOpts.map((o, i) => (
-                <div key={i} style={o.rowStyle} onClick={o.onClick}>
-                  <span style={o.markStyle}>{o.showCheck && (<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4 4 10-10" /></svg>)}</span>
-                  <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: '13px', color: 'var(--ink2)', flex: 'none' }}>{o.k}</span>
-                  <span style={{ fontSize: '14.5px', color: 'var(--ink)', lineHeight: 1.5 }}>{o.t}</span>
-                </div>
-              ))}
-            </div>
+            {v.pFieldProps && <AnswerFieldByType {...v.pFieldProps} />}
 
             <div style={{ flex: 1, minHeight: '20px' }}></div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '20px', borderTop: '1px solid var(--line)' }}>
               <button style={{ background: 'var(--surface)', border: '1px solid var(--line)', color: 'var(--ink2)', borderRadius: '8px', padding: '9px 16px', fontSize: '13.5px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }} onClick={v.pNext}>跳过</button>
               <div style={{ display: 'flex', gap: '10px' }}>
-                <button style={{ background: 'var(--surface)', border: '1px solid var(--line)', color: 'var(--ink)', borderRadius: '8px', padding: '9px 18px', fontSize: '13.5px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }} onClick={v.pToggleAna}>查看解析</button>
+                <button style={{ background: 'var(--surface)', border: '1px solid var(--line)', color: 'var(--ink)', borderRadius: '8px', padding: '9px 18px', fontSize: '13.5px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }} onClick={v.pSubmit}>提交答案</button>
                 <button style={{ background: 'var(--pri)', border: '1px solid var(--pri)', color: '#fff', borderRadius: '8px', padding: '9px 20px', fontSize: '13.5px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px' }} onClick={v.pNext}>下一题<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h13M13 6l6 6-6 6" /></svg></button>
               </div>
             </div>
@@ -96,6 +94,7 @@ export function PracticeScreen() {
             <div style={{ width: '1px', height: '18px', background: 'var(--line)' }}></div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {v.pAnsWrong && (<><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#F04438" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M9 9l6 6M15 9l-6 6" /></svg><span style={{ fontSize: '14px', color: 'var(--ink2)' }}>你的答案</span><span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: '15px', fontWeight: 700, color: '#F04438' }}>{v.pYourAns}</span></>)}
+              {v.pPartial && (<><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#F79009" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></svg><span style={{ fontSize: '14px', color: 'var(--ink2)' }}>你的答案</span><span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: '15px', fontWeight: 700, color: '#F79009' }}>{v.pYourAns} · 部分正确 {Math.round((v.pGrade?.score ?? 0) * 100)}%</span></>)}
               {v.pAnsRight && (<><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0E9F6E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M8.5 12l2.4 2.4L15.5 9" /></svg><span style={{ fontSize: '14px', color: 'var(--ink2)' }}>你的答案</span><span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: '15px', fontWeight: 700, color: '#0E9F6E' }}>{v.pYourAns}</span></>)}
             </div>
             <div style={{ flex: 1 }}></div>

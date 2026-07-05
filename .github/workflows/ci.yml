@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: typecheck · selfchecks · build
+    runs-on: ubuntu-latest
+
+    # Placeholder env so `prisma generate` + `next build` run WITHOUT a real database or secrets
+    # (architecture §11). These values only need to satisfy env.ts (loose in non-prod) and let Prisma
+    # read a well-formed URL; nothing here connects out. NODE_ENV stays unset (→ development) so
+    # env.ts fails soft on any gap rather than hard-crashing the build.
+    env:
+      DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci?schema=public"
+      DIRECT_URL: "postgresql://ci:ci@localhost:5432/ci?schema=public"
+      AUTH_SECRET: "ci-only-secret-not-for-production-0123456789abcdef"
+      AUTH_URL: "http://localhost:3000"
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Prisma generate
+        run: npx prisma generate
+
+      - name: Typecheck (tsc --noEmit)
+        run: npx tsc --noEmit
+
+      # `next lint` only if an ESLint config is present; otherwise skip (it would otherwise prompt to
+      # scaffold one and fail non-interactively). No config is committed today, so this is a no-op
+      # until one is added.
+      - name: Lint (if configured)
+        run: |
+          if ls .eslintrc* eslint.config.* >/dev/null 2>&1; then
+            npx next lint
+          else
+            echo "No ESLint config found — skipping next lint."
+          fi
+
+      # HARD GATES (architecture §11): the partial-credit grading math self-check and the
+      # record<->row mapping self-check. A regression in either is the highest correctness risk in the
+      # product, so a non-zero exit here fails the build.
+      - name: Self-check — qbank grading math (HARD GATE)
+        run: npx tsx lib/qbank/selfcheck.ts
+
+      - name: Self-check — qbank record<->row mapping (HARD GATE)
+        run: npx tsx lib/server/qbank/mapping.selfcheck.ts
+
+      # Vitest layer (wraps the two self-checks above as assertions + adds focused unit tests for the
+      # pure qbank logic — normalize/validate/strip). Fast, no DB. Complements (does not replace) the
+      # runnable self-check gates.
+      - name: Unit tests (vitest)
+        run: npm test
+
+      - name: Build (next build)
+        run: npx next build

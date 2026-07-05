@@ -1,0 +1,487 @@
+// ByteOffer — production Prisma schema (see docs/design/architecture.md §2).
+// DB stores ASCII enums; Chinese labels live in lib/qbank/enums.ts (TYPE_LABEL/DIFF_LABEL).
+// Question = promoted mirror columns (query surface) + single JSONB `payload` (the authoritative
+// QuestionRecord, 1:1 with the interchange format). GIN indexes + CHECK constraint are appended
+// as raw SQL in the initial migration.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // pooled (PgBouncer) for the app
+  directUrl = env("DIRECT_URL")   // non-pooled for migrations
+}
+
+// ============================================================
+//  ENUMS — ASCII in DB
+// ============================================================
+enum Role {
+  user
+  admin
+}
+
+enum QuestionType {
+  single_choice
+  multiple_choice
+  true_false
+  fill_blank
+  numeric
+  code_output
+  ordering
+  matching
+  short_answer
+  essay
+  code_writing
+  scenario
+  cloze
+}
+
+enum Difficulty {
+  easy
+  medium
+  hard
+}
+
+enum GradingClass {
+  auto_exact
+  auto_set
+  auto_normalized
+  auto_partial
+  self_assess
+  manual_reference
+  composite
+}
+
+enum QuestionStatus {
+  draft
+  in_review
+  published
+  archived
+}
+
+enum AttemptStatus {
+  correct
+  incorrect
+  partial
+  ungraded
+}
+
+enum SessionMode {
+  practice
+  exam
+}
+
+enum SessionStatus {
+  active
+  submitted
+  abandoned
+  expired
+}
+
+enum PlanTier {
+  free
+  plus
+}
+
+enum SubStatus {
+  active
+  trialing
+  past_due
+  canceled
+  incomplete
+  incomplete_expired
+  unpaid
+}
+
+enum ImportStatus {
+  pending
+  applied
+  rejected
+}
+
+// ============================================================
+//  AUTH.JS adapter tables (+ role / passwordHash / billing)
+// ============================================================
+model User {
+  id               String    @id @default(cuid())
+  name             String?
+  email            String    @unique
+  emailVerified    DateTime?
+  image            String?
+  role             Role      @default(user)
+  passwordHash     String? // null for OAuth-only accounts; argon2id
+  stripeCustomerId String?   @unique
+
+  accounts          Account[]
+  sessions          Session[]
+  attempts          Attempt[]
+  studySessions     StudySession[]
+  progress          Progress[]
+  favorites         Favorite[]
+  wrongEntries      WrongbookEntry[]
+  subscription      Subscription?
+  entitlement       Entitlement?
+  events            AnalyticsEvent[]
+  dailyStats        DailyUserStat[]
+  authoredQuestions Question[]       @relation("AuthoredBy")
+  importBatches     ImportBatch[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([role])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+// Not load-bearing under the JWT strategy, but kept for the adapter contract / future switch.
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ============================================================
+//  Question bank
+// ============================================================
+model QuestionBank {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  title       String
+  description String?
+  isPremium   Boolean  @default(false) // gated to Plus
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  questions Question[]
+
+  @@index([isPremium])
+}
+
+model Category {
+  id       String  @id @default(cuid())
+  slug     String  @unique
+  name     String // Chinese display name is content, not an enum
+  parentId String?
+
+  parent    Category?  @relation("CatTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children  Category[] @relation("CatTree")
+  questions Question[]
+
+  @@index([parentId])
+}
+
+model Tag {
+  id   String @id @default(cuid())
+  slug String @unique // ASCII-safe key
+  name String // display (Chinese ok)
+
+  questions QuestionTag[]
+}
+
+model QuestionTag {
+  questionId String
+  tagId      String
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  tag      Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([questionId, tagId])
+  @@index([tagId])
+}
+
+/// One row per QuestionRecord. `payload` is the 1:1 JSONB mirror of the interchange record;
+/// the mirror columns are the query surface.
+model Question {
+  id         String @id // author-stable id (provided at import)
+  bankId     String
+  categoryId String?
+
+  // ---- promoted mirror columns (filter/sort/search surface) ----
+  type          QuestionType
+  difficulty    Difficulty     @default(medium)
+  gradingClass  GradingClass // = effectiveClass(record), recomputed on every write
+  status        QuestionStatus @default(draft)
+  stemText      String         @db.Text // plain text for list/search; authoritative stem in payload
+  tagsFlat      String[]       @default([]) // denormalized tag slugs; GIN index via raw SQL
+
+  // ---- authoritative record ----
+  payload       Json // JSONB: the full QuestionRecord
+  schemaVersion Int  @default(1)
+
+  authorId String?
+
+  bank         QuestionBank     @relation(fields: [bankId], references: [id], onDelete: Restrict)
+  category     Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  author       User?            @relation("AuthoredBy", fields: [authorId], references: [id], onDelete: SetNull)
+  tags         QuestionTag[]
+  attempts     Attempt[]
+  progress     Progress[]
+  favorites    Favorite[]
+  wrongEntries WrongbookEntry[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  publishedAt DateTime?
+
+  @@index([bankId, status])
+  @@index([type])
+  @@index([difficulty])
+  @@index([status, difficulty, type]) // covers practice filtering
+  @@index([gradingClass])
+  // Raw SQL migration appends:
+  //   CHECK (payload->>'type' = type::text)
+  //   GIN (payload jsonb_path_ops)
+  //   GIN (tagsFlat)
+}
+
+// ============================================================
+//  Practice / exam sessions (named to avoid Auth.js Session clash)
+// ============================================================
+model StudySession {
+  id           String        @id @default(cuid())
+  userId       String
+  mode         SessionMode
+  status       SessionStatus @default(active)
+  bankId       String?
+  filters      Json? // frozen filter snapshot (ASCII keys)
+  questionIds  String[]      @default([]) // exam: frozen ordered set
+  remainingSec Int? // exam countdown, replaces localStorage fe_exam_remain
+  durationSec  Int? // exam total duration (server deadline basis)
+  totalScore   Float?
+  maxScore     Float?
+  startedAt    DateTime      @default(now())
+  submittedAt  DateTime?
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attempts Attempt[]
+
+  @@index([userId, mode, status])
+  @@map("study_session")
+}
+
+// ============================================================
+//  Attempts (one submission per question + server grade result)
+// ============================================================
+model Attempt {
+  id           String        @id @default(cuid())
+  userId       String
+  questionId   String
+  sessionId    String?
+  userAnswer   Json // UserAnswer discriminated union (qbank §4)
+  status       AttemptStatus
+  score        Float? // objective machine score [0,1] | null (manual_reference/ungraded)
+  selfScore    Float? // subjective self-grade, excluded from objective denominator
+  maxScore     Float         @default(1)
+  gradingClass GradingClass // snapshot at grade time
+  durationMs   Int?
+  createdAt    DateTime      @default(now())
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question Question      @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  session  StudySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt]) // stats time series
+  @@index([userId, questionId])
+  @@index([questionId, status])
+  @@index([sessionId])
+}
+
+/// (user, question) rolling summary: single source for wrongbook/favorites/recent/stats.
+model Progress {
+  userId       String
+  questionId   String
+  attempts     Int            @default(0)
+  correctCount Int            @default(0)
+  wrongCount   Int            @default(0)
+  lastScore    Float?
+  lastStatus   AttemptStatus?
+  lastAnswer   Json? // resume rehydrate (UserAnswer)
+  lastAt       DateTime?
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, questionId])
+  @@index([userId, lastAt])
+  @@index([userId, wrongCount])
+}
+
+model Favorite {
+  userId     String
+  questionId String
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, questionId])
+  @@index([userId, createdAt])
+}
+
+/// Materialized wrongbook membership (supports note/mastered/fast pagination).
+model WrongbookEntry {
+  userId      String
+  questionId  String
+  wrongCount  Int      @default(1)
+  mastered    Boolean  @default(false)
+  note        String?  @db.Text
+  lastWrongAt DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, questionId])
+  @@index([userId, mastered, lastWrongAt])
+}
+
+// ============================================================
+//  Commercialization (Stripe)
+// ============================================================
+model Plan {
+  id                   String   @id @default(cuid())
+  tier                 PlanTier @unique
+  name                 String // "免费版" / "Plus 会员"
+  stripePriceIdMonthly String?
+  stripePriceIdYearly  String?
+  dailyQuota           Int? // free=30; plus=null (unlimited)
+  premiumBanks         Boolean  @default(false)
+  examMode             Boolean  @default(true)
+  aiExplain            Boolean  @default(false)
+  createdAt            DateTime @default(now())
+}
+
+model Subscription {
+  id                   String    @id @default(cuid())
+  userId               String    @unique
+  tier                 PlanTier  @default(free)
+  status               SubStatus @default(active)
+  stripeSubscriptionId String?   @unique
+  stripePriceId        String?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean   @default(false)
+  updatedAt            DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+}
+
+/// Denormalized entitlement snapshot — O(1) gating read, rebuilt on webhook events.
+model Entitlement {
+  userId       String    @id
+  tier         PlanTier  @default(free)
+  dailyQuota   Int? // null = unlimited
+  premiumBanks Boolean   @default(false)
+  examMode     Boolean   @default(true)
+  aiExplain    Boolean   @default(false)
+  validUntil   DateTime?
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Stripe webhook idempotency ledger — insert event.id in the same tx as the entitlement change.
+model ProcessedStripeEvent {
+  id          String   @id // Stripe event.id
+  type        String
+  processedAt DateTime @default(now())
+}
+
+// ============================================================
+//  Import review queue (two-phase)
+// ============================================================
+model ImportBatch {
+  id         String       @id @default(cuid())
+  adminId    String
+  bankId     String
+  status     ImportStatus @default(pending)
+  mergeMode  String       @default("merge") // merge | replace
+  report     Json // validateEnvelope → ImportReport
+  rawPayload Json // the pending envelope
+  createdAt  DateTime     @default(now())
+  appliedAt  DateTime?
+
+  admin User @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+}
+
+// ============================================================
+//  Analytics / ops
+// ============================================================
+model AnalyticsEvent {
+  id         String   @id @default(cuid())
+  userId     String?
+  name       String // "attempt.graded" | ...
+  props      Json?
+  occurredAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([name, occurredAt])
+  @@index([userId, occurredAt])
+}
+
+/// Per-user per-day materialized summary — incrementally upserted inside the attempt tx.
+model DailyUserStat {
+  userId            String
+  day               DateTime @db.Date
+  attempts          Int      @default(0)
+  correct           Int      @default(0)
+  objectiveAttempts Int      @default(0) // objective denominator: excludes selfGraded/null-score
+  studyMs           Int      @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, day])
+  @@index([userId, day])
+}
+
+// ============================================================
+//  Rate limiting (durable Postgres fixed-window counter, architecture §10)
+// ============================================================
+/// Durable fixed-window rate-limit counter. `key` is `bucket:identifier:windowIndex` (the window
+/// index is floor(now/windowSec), so each window gets its own row). Increment is a single atomic
+/// `INSERT ... ON CONFLICT DO UPDATE` (see lib/server/ratelimit.ts). No external Redis required —
+/// this keeps the app single-deployable. Old rows are pruned opportunistically / by the cron.
+model RateLimit {
+  key         String   @id
+  count       Int      @default(0)
+  windowStart DateTime
+  updatedAt   DateTime @updatedAt
+}

@@ -1,0 +1,23 @@
+# Keep the build context small + never leak local secrets into the image.
+node_modules
+.next
+.git
+.github
+.idea
+.claude
+.vscode
+
+# Secrets / local env — the image reads real env at runtime, never from a baked file.
+.env
+.env.*
+!.env.example
+
+# Docs / meta not needed to build.
+*.md
+docs
+
+# OS / tooling cruft.
+.DS_Store
+npm-debug.log*
+Dockerfile
+.dockerignore

@@ -54,6 +54,14 @@ const icons: Record<string, IconFn> = {
     svg(sw, (
       <path d="M12 4l2.35 4.76 5.25.76-3.8 3.7.9 5.23L12 16.9l-4.7 2.35.9-5.23-3.8-3.7 5.25-.76z" />
     )),
+  qbank: (sw) =>
+    svg(sw, (
+      <>
+        <path d="M4 7l8-4 8 4-8 4-8-4z" />
+        <path d="M4 7v10l8 4 8-4V7" />
+        <path d="M12 11v10" opacity="0.5" />
+      </>
+    )),
   stats: (sw) =>
     svg(sw, (
       <>
@@ -174,6 +182,7 @@ export function Sidebar() {
         <SectionLabel pt="16px">// 复习</SectionLabel>
         <NavItem icon={icons.wrongbook} label="错题本" kbd="⌘4" active={v.nav.wrongbook.active} onClick={v.nav.wrongbook.go} />
         <NavItem icon={icons.favorites} label="收藏夹" kbd="⌘5" active={v.nav.favorites.active} onClick={v.nav.favorites.go} />
+        <NavItem icon={icons.qbank} label="题库" kbd="⌘6" active={v.nav.qbank.active} onClick={v.nav.qbank.go} />
 
         <SectionLabel pt="16px">// 成长</SectionLabel>
         <NavItem icon={icons.stats} label="数据统计" kbd="⌘7" active={v.nav.stats.active} onClick={v.nav.stats.go} />
@@ -191,11 +200,11 @@ export function Sidebar() {
               </span>
             </div>
             <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
-              <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "24px", fontWeight: 700, color: "var(--rail-strong)", lineHeight: 1 }}>18</span>
-              <span style={{ fontSize: "11px", color: "var(--rail-fg)" }}>天 · 今日目标 56/60</span>
+              <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "24px", fontWeight: 700, color: "var(--rail-strong)", lineHeight: 1 }}>{v.statsReady ? v.statStreak : 18}</span>
+              <span style={{ fontSize: "11px", color: "var(--rail-fg)" }}>天 · 今日目标 {v.statsReady ? v.statTodayCount : 56}/{v.statsReady ? v.statGoal : 60}</span>
             </div>
             <div style={{ height: "4px", background: "var(--rail-wbd)", borderRadius: "3px", marginTop: "11px", overflow: "hidden" }}>
-              <div style={{ width: "93%", height: "100%", background: "var(--pri)", borderRadius: "3px" }} />
+              <div style={{ width: `${v.statsReady ? v.statTodayGoalPct : 93}%`, height: "100%", background: "var(--pri)", borderRadius: "3px" }} />
             </div>
           </div>
         </div>

@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://byteoffer.dev/qbank.schema.json",
+  "title": "ByteOffer 题库交换格式 (byteoffer.qbank)",
+  "description": "Import/export envelope for ByteOffer question banks. See docs/design/qbank-data-model.md. Author question files against this schema for editor autocomplete + validation.",
+  "type": "object",
+  "required": ["format", "schemaVersion", "questions"],
+  "properties": {
+    "format": { "const": "byteoffer.qbank", "description": "Magic string — the validator's first check." },
+    "schemaVersion": { "type": "integer", "minimum": 1, "description": "Drives migration. Current: 1." },
+    "exportedAt": { "type": "string", "description": "ISO-8601 timestamp (export only)." },
+    "source": {
+      "type": "object",
+      "properties": {
+        "app": { "type": "string" },
+        "appVersion": { "type": "string" },
+        "author": { "type": "string" }
+      }
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "locale": { "type": "string", "default": "zh-CN" }
+      }
+    },
+    "counts": { "type": "object", "description": "Redundant cross-check; mismatch is a warning, not an error." },
+    "questions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/question" }
+    }
+  },
+  "$defs": {
+    "difficulty": { "enum": ["easy", "medium", "hard"] },
+    "optionKey": { "enum": ["A", "B", "C", "D", "E", "F", "G", "H"] },
+    "opt": {
+      "type": "object",
+      "required": ["k", "t"],
+      "properties": { "k": { "$ref": "#/$defs/optionKey" }, "t": { "type": "string" } }
+    },
+    "idText": {
+      "type": "object",
+      "required": ["id", "t"],
+      "properties": { "id": { "type": "string" }, "t": { "type": "string" } }
+    },
+    "accept": {
+      "oneOf": [
+        { "type": "object", "required": ["text"], "properties": { "text": { "type": "string" } } },
+        { "type": "object", "required": ["regex"], "properties": { "regex": { "type": "string" }, "flags": { "type": "string" } } }
+      ]
+    },
+    "blank": {
+      "type": "object",
+      "required": ["accept"],
+      "properties": {
+        "accept": { "type": "array", "items": { "$ref": "#/$defs/accept" }, "minItems": 1 },
+        "label": { "type": "string" }
+      }
+    },
+    "normalizeOpts": {
+      "type": "object",
+      "description": "Text normalization knobs (defaults per docs §2.4). Optional.",
+      "properties": {
+        "trim": { "type": "boolean" },
+        "collapseWhitespace": { "type": "boolean" },
+        "caseInsensitive": { "type": "boolean" },
+        "fullwidthToHalfwidth": { "type": "boolean" },
+        "ignoreChinesePunctVariant": { "type": "boolean" },
+        "stripPunctuation": { "type": "boolean" },
+        "trimTrailingWhitespace": { "type": "boolean" },
+        "collapseBlankLines": { "type": "boolean" },
+        "synonyms": { "type": "array", "items": { "type": "array", "items": { "type": "string" } } }
+      }
+    },
+    "media": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "src"],
+        "properties": {
+          "kind": { "enum": ["image", "code"] },
+          "src": { "type": "string", "description": "images MUST be a data:image/* URI (external URLs are rejected)." },
+          "alt": { "type": "string" }
+        }
+      }
+    },
+    "explanation": {
+      "type": "object",
+      "properties": {
+        "explain": { "type": "string" },
+        "points": { "type": "array", "items": { "type": "string" } },
+        "pitfalls": { "type": "array", "items": { "type": "string" } },
+        "related": { "type": "array", "items": { "type": "string" } },
+        "ai": { "type": "string" }
+      }
+    },
+    "baseProps": {
+      "id": { "type": "string", "description": "Author-stable id (recommended <domain>-<topic>-<seq>); auto-derived if omitted." },
+      "difficulty": { "$ref": "#/$defs/difficulty" },
+      "tags": { "type": "array", "items": { "type": "string" } },
+      "stem": { "type": "string" },
+      "source": { "type": "object", "properties": { "company": { "type": "string" }, "year": { "type": "integer" }, "position": { "type": "string" } } },
+      "explanation": { "$ref": "#/$defs/explanation" },
+      "media": { "$ref": "#/$defs/media" },
+      "grading": { "type": "object", "properties": { "partial": { "type": "boolean" } } },
+      "x": { "type": "object", "description": "Extension bag — preserved round-trip." }
+    },
+    "question": {
+      "type": "object",
+      "required": ["type", "stem"],
+      "properties": { "type": { "enum": ["single_choice", "multiple_choice", "true_false", "fill_blank", "numeric", "code_output", "ordering", "matching", "short_answer", "essay", "code_writing", "scenario", "cloze"] } },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "single_choice" } } },
+          "then": { "required": ["options", "answer"], "properties": { "options": { "type": "array", "items": { "$ref": "#/$defs/opt" }, "minItems": 2 }, "answer": { "$ref": "#/$defs/optionKey" } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "multiple_choice" } } },
+          "then": { "required": ["options", "answer"], "properties": { "options": { "type": "array", "items": { "$ref": "#/$defs/opt" }, "minItems": 2 }, "answer": { "type": "array", "items": { "$ref": "#/$defs/optionKey" }, "minItems": 1 } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "true_false" } } },
+          "then": { "required": ["answer"], "properties": { "answer": { "type": "boolean" } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "fill_blank" } } },
+          "then": { "required": ["mode", "blanks"], "properties": { "mode": { "enum": ["ordered", "unordered"] }, "blanks": { "type": "array", "items": { "$ref": "#/$defs/blank" }, "minItems": 1 }, "normalize": { "$ref": "#/$defs/normalizeOpts" } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "numeric" } } },
+          "then": { "required": ["value"], "properties": { "value": { "type": "number" }, "unit": { "type": "string" }, "tolerance": { "type": "object", "properties": { "abs": { "type": "number" }, "rel": { "type": "number" } } } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "code_output" } } },
+          "then": { "required": ["expected"], "properties": { "expected": { "type": "string" }, "accept": { "type": "array", "items": { "$ref": "#/$defs/accept" } }, "normalize": { "$ref": "#/$defs/normalizeOpts" } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "ordering" } } },
+          "then": { "required": ["items", "order"], "properties": { "items": { "type": "array", "items": { "$ref": "#/$defs/idText" }, "minItems": 2 }, "order": { "type": "array", "items": { "type": "string" } }, "orderScoring": { "enum": ["position", "kendall"] } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "matching" } } },
+          "then": { "required": ["left", "right", "pairs"], "properties": { "left": { "type": "array", "items": { "$ref": "#/$defs/idText" } }, "right": { "type": "array", "items": { "$ref": "#/$defs/idText" } }, "pairs": { "type": "array", "items": { "type": "array", "items": { "type": "string" }, "minItems": 2, "maxItems": 2 } }, "manyToOne": { "type": "boolean" } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "short_answer" } } },
+          "then": { "required": ["reference"], "properties": { "reference": { "type": "string" }, "keywords": { "type": "array", "items": { "type": "string" } }, "selfAssess": { "type": "boolean" } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "essay" } } },
+          "then": { "required": ["reference"], "properties": { "reference": { "type": "string" }, "rubric": { "type": "array", "items": { "type": "object", "required": ["point", "weight"], "properties": { "point": { "type": "string" }, "weight": { "type": "number" } } } }, "selfAssess": { "type": "boolean" } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "code_writing" } } },
+          "then": { "required": ["reference"], "properties": { "reference": { "type": "string" }, "lang": { "type": "string" }, "tests": { "type": "array", "items": { "type": "object", "properties": { "desc": { "type": "string" } } } }, "selfAssess": { "type": "boolean" } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "scenario" } } },
+          "then": { "required": ["parts"], "properties": { "parts": { "type": "array", "items": { "$ref": "#/$defs/question" }, "minItems": 1, "description": "Leaf questions (no nested scenario). Each may add `points` (weight)." } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "cloze" } } },
+          "then": { "required": ["template", "blanks"], "properties": { "template": { "type": "string", "description": "Placeholder token [[n]]." }, "blanks": { "type": "array", "items": { "$ref": "#/$defs/blank" } }, "mode": { "enum": ["ordered", "unordered"] }, "normalize": { "$ref": "#/$defs/normalizeOpts" } }, "description": "v1 RESERVED: imports with a warning, not auto-graded." }
+        }
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "difficulty": { "$ref": "#/$defs/difficulty" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "stem": { "type": "string" },
+        "points": { "type": "number", "description": "scenario part weight only" },
+        "source": { "type": "object" },
+        "explanation": { "$ref": "#/$defs/explanation" },
+        "media": { "$ref": "#/$defs/media" },
+        "grading": { "type": "object", "properties": { "partial": { "type": "boolean" } } },
+        "x": { "type": "object" }
+      }
+    }
+  }
+}

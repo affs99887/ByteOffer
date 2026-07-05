@@ -1,5 +1,6 @@
 "use client";
 import { useApp } from "@/lib/app-context";
+import { AnswerFieldByType } from "@/components/qbank/answer-field";
 
 export function ExamScreen() {
   const v = useApp();
@@ -7,6 +8,12 @@ export function ExamScreen() {
     <div data-screen-label="模拟面试 考试" className="bo-enter" style={{ maxWidth: '1440px', margin: '0 auto' }}>
 
       {v.examSubmittedInv && (<>
+      {v.examStartError && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(240,68,56,.08)', border: '1px solid rgba(240,68,56,.28)', color: '#D63C31', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px', fontSize: '13.5px', fontWeight: 600 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+          无法开始考试，请稍后重试（服务暂时不可用）。
+        </div>
+      )}
       <div className="bo-flexcol" style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'flex-start', marginBottom: '16px' }}>
 
         <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: '12px', padding: '18px', flex: '1 1 236px', minWidth: '214px', maxWidth: '290px' }}>
@@ -38,15 +45,7 @@ export function ExamScreen() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '22px 0 16px' }}><span style={v.examTypeChip}>{v.examQ.type}</span><span style={v.examDiffChip.style}><span style={v.examDiffChip.dot}></span>{v.examDiffChip.label}</span></div>
           <div style={{ fontSize: '17px', fontWeight: 700, color: 'var(--ink)', lineHeight: 1.55, marginBottom: '20px' }}>{v.examQ.q}</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '11px' }}>
-            {v.eOpts.map((o, i) => (
-              <div key={i} style={o.rowStyle} onClick={o.onClick}>
-                <span style={o.markStyle}>{o.sel && (<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4 4 10-10"/></svg>)}</span>
-                <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: '13px', color: 'var(--ink2)', flex: 'none' }}>{o.k}</span>
-                <span style={{ fontSize: '14.5px', color: 'var(--ink)' }}>{o.t}</span>
-              </div>
-            ))}
-          </div>
+          {v.examFieldProps && <AnswerFieldByType {...v.examFieldProps} />}
           <div style={{ flex: 1, minHeight: '20px' }}></div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '20px', borderTop: '1px solid var(--line)' }}>
             <button style={{ display: 'flex', alignItems: 'center', gap: '7px', background: 'var(--surface)', border: '1px solid var(--line)', color: 'var(--ink2)', borderRadius: '8px', padding: '9px 15px', fontSize: '13.5px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }} onClick={v.examMark}>
@@ -88,13 +87,13 @@ export function ExamScreen() {
       <div style={{ maxWidth: '720px', margin: '20px auto 0', background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: '14px', padding: '36px 40px', textAlign: 'center' }}>
         <div style={{ width: '64px', height: '64px', margin: '0 auto 18px', borderRadius: '18px', background: 'var(--pri-w)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--pri)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>
         <div style={{ fontFamily: "'Space Grotesk','Noto Sans SC',sans-serif", fontSize: '22px', fontWeight: 700, color: 'var(--ink)' }}>交卷成功</div>
-        <div style={{ fontSize: '13.5px', color: 'var(--ink2)', marginTop: '6px' }}>本次「前端综合能力测试」已完成，成绩如下</div>
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '4px', margin: '24px 0' }}><span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: '56px', fontWeight: 700, color: 'var(--pri)', lineHeight: 1 }}>82</span><span style={{ fontSize: '20px', color: 'var(--ink3)', fontWeight: 600 }}>/ 100</span></div>
+        <div style={{ fontSize: '13.5px', color: 'var(--ink2)', marginTop: '6px' }}>{v.examServerPending ? '正在评分，请稍候…' : '本次「前端综合能力测试」已完成，成绩如下'}</div>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '4px', margin: '24px 0' }}>{v.examServerPending ? (<span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: '40px', fontWeight: 700, color: 'var(--ink3)', lineHeight: 1 }}>评分中…</span>) : (<><span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: '56px', fontWeight: 700, color: 'var(--pri)', lineHeight: 1 }}>{v.examScore100}</span><span style={{ fontSize: '20px', color: 'var(--ink3)', fontWeight: 600 }}>/ 100</span></>)}</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '12px', marginBottom: '26px' }}>
-          <div style={{ border: '1px solid var(--line)', borderRadius: '10px', padding: '14px' }}><div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: '24px', fontWeight: 700, color: '#0E9F6E' }}>24</div><div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '3px' }}>答对</div></div>
-          <div style={{ border: '1px solid var(--line)', borderRadius: '10px', padding: '14px' }}><div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: '24px', fontWeight: 700, color: '#F04438' }}>4</div><div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '3px' }}>答错</div></div>
-          <div style={{ border: '1px solid var(--line)', borderRadius: '10px', padding: '14px' }}><div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: '24px', fontWeight: 700, color: 'var(--ink3)' }}>2</div><div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '3px' }}>未答</div></div>
-          <div style={{ border: '1px solid var(--line)', borderRadius: '10px', padding: '14px' }}><div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: '24px', fontWeight: 700, color: 'var(--ink)' }}>28m</div><div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '3px' }}>用时</div></div>
+          <div style={{ border: '1px solid var(--line)', borderRadius: '10px', padding: '14px' }}><div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: '24px', fontWeight: 700, color: '#0E9F6E' }}>{v.examCorrect}</div><div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '3px' }}>答对</div></div>
+          <div style={{ border: '1px solid var(--line)', borderRadius: '10px', padding: '14px' }}><div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: '24px', fontWeight: 700, color: '#F04438' }}>{v.examWrong}</div><div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '3px' }}>答错</div></div>
+          <div style={{ border: '1px solid var(--line)', borderRadius: '10px', padding: '14px' }}><div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: '24px', fontWeight: 700, color: 'var(--ink3)' }}>{v.examUnanswered}</div><div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '3px' }}>未答</div></div>
+          <div style={{ border: '1px solid var(--line)', borderRadius: '10px', padding: '14px' }}><div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: '24px', fontWeight: 700, color: 'var(--ink)' }}>{v.examAnsweredCount}</div><div style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: '3px' }}>已答</div></div>
         </div>
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
           <button style={{ background: 'var(--surface)', border: '1px solid var(--line)', color: 'var(--ink)', borderRadius: '9px', padding: '11px 22px', fontSize: '13.5px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }} onClick={v.nav.wrongbook.go}>查看错题解析</button>

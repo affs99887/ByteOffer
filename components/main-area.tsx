@@ -8,6 +8,7 @@ import { ExamScreen } from "./screens/exam";
 import { WrongbookScreen } from "./screens/wrongbook";
 import { StatsScreen } from "./screens/stats";
 import { SettingsScreen } from "./screens/settings";
+import { QbankScreen } from "./screens/qbank";
 
 export function MainArea() {
   const v = useApp();
@@ -32,6 +33,7 @@ export function MainArea() {
         {v.isExam && <ExamScreen />}
         {v.isWrong && <WrongbookScreen />}
         {v.isStats && <StatsScreen />}
+        {v.isQbank && <QbankScreen />}
         {v.isSettings && <SettingsScreen />}
       </div>
     </main>
