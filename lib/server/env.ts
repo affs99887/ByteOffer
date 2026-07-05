@@ -59,13 +59,18 @@ function loadEnv(): Env {
   const parsed = envSchema.safeParse(process.env);
   if (parsed.success) return parsed.data;
 
+  // `next build` runs with NODE_ENV=production but collects page data by IMPORTING route modules —
+  // runtime secrets (DATABASE_URL/AUTH_SECRET/…) are legitimately absent then and must NOT crash the
+  // build. Next sets NEXT_PHASE=phase-production-build during the build; Vercel builds have no .env.
+  // So we fail-fast ONLY at real runtime (a running production server), never during the build phase.
+  const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
   const isProd = process.env.NODE_ENV === "production";
   const flat = parsed.error.issues
     .map((i) => `  - ${i.path.join(".") || "(root)"}: ${i.message}`)
     .join("\n");
 
-  if (isProd) {
-    // Fail-fast in production (§10): a real deployment must have valid secrets.
+  if (isProd && !isBuildPhase) {
+    // Fail-fast at production RUNTIME (§10): a live deployment must have valid secrets.
     throw new Error(`Invalid environment variables:\n${flat}`);
   }
 
