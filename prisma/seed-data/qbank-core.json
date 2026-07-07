@@ -1,0 +1,2338 @@
+{
+  "format": "byteoffer.qbank",
+  "schemaVersion": 1,
+  "meta": {
+    "title": "ByteOffer 核心题库",
+    "locale": "zh-CN"
+  },
+  "questions": [
+    {
+      "id": "html-semantic-001",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": [
+        "HTML",
+        "语义化"
+      ],
+      "stem": "下列哪个 HTML5 元素最适合标记页面主体中一段“与周围内容相对独立、可单独分发或复用”的内容（如一篇博客文章或一条评论）？",
+      "options": [
+        {
+          "k": "A",
+          "t": "section"
+        },
+        {
+          "k": "B",
+          "t": "article"
+        },
+        {
+          "k": "C",
+          "t": "div"
+        },
+        {
+          "k": "D",
+          "t": "aside"
+        }
+      ],
+      "answer": "B",
+      "explanation": {
+        "explain": "article 表示文档中一段自包含、可独立于其余内容分发或复用的内容，典型如博客文章、新闻报道、论坛帖子或评论。section 表示主题相关的一组内容，通常带有标题，但不强调可独立分发。div 是无语义的通用容器，aside 表示与主内容间接相关的旁支内容（如侧边栏）。语义化选择应以“内容含义”为依据，而非视觉表现。",
+        "points": [
+          "article 强调内容可独立分发或复用",
+          "section 是主题分组，通常需要标题",
+          "div 无语义，仅作样式或脚本钩子",
+          "aside 表示旁支或补充内容"
+        ],
+        "pitfalls": [
+          "把 section 当作无语义分组容器滥用",
+          "误以为 article 只能用于长文章而不能用于评论或卡片"
+        ],
+        "related": [
+          "HTML5 语义化标签",
+          "文档大纲算法",
+          "可访问性与地标角色"
+        ]
+      }
+    },
+    {
+      "id": "html-viewport-002",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": [
+        "HTML",
+        "meta",
+        "移动端"
+      ],
+      "stem": "为使页面在移动端按设备宽度渲染并保持初始 1:1 缩放，下列 meta viewport 配置正确的是？",
+      "options": [
+        {
+          "k": "A",
+          "t": "<meta name=\"viewport\" content=\"width=320, initial-scale=2\">"
+        },
+        {
+          "k": "B",
+          "t": "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">"
+        },
+        {
+          "k": "C",
+          "t": "<meta charset=\"utf-8\">"
+        },
+        {
+          "k": "D",
+          "t": "<meta name=\"viewport\" content=\"height=device-height\">"
+        }
+      ],
+      "answer": "B",
+      "explanation": {
+        "explain": "width=device-width 让布局视口宽度等于设备的理想视口宽度，initial-scale=1.0 使初始缩放比例为 1:1，二者配合是移动端响应式布局的标准写法。选项 A 固定宽度且初始放大 2 倍，会破坏响应式；C 是字符编码声明，与视口无关；D 只设高度不设宽度，无法正确适配。现代实践一般不再用 maximum-scale 或 user-scalable 去禁用缩放，以免损害可访问性。",
+        "points": [
+          "width=device-width 使布局视口等于理想视口",
+          "initial-scale=1.0 保证初始 1:1 缩放",
+          "charset 与 viewport 是两类不同的 meta",
+          "不建议禁用用户缩放以保障无障碍"
+        ],
+        "pitfalls": [
+          "固定 width 数值导致无法自适应",
+          "混淆布局视口与视觉视口"
+        ],
+        "related": [
+          "响应式设计",
+          "布局视口与视觉视口",
+          "移动端适配方案"
+        ]
+      }
+    },
+    {
+      "id": "html-form-003",
+      "type": "multiple_choice",
+      "difficulty": "medium",
+      "tags": [
+        "HTML",
+        "表单",
+        "input"
+      ],
+      "stem": "关于 HTML 表单与原生约束校验，下列说法正确的有哪些？",
+      "options": [
+        {
+          "k": "A",
+          "t": "required 属性可让浏览器在提交时对空值进行原生校验并阻止提交"
+        },
+        {
+          "k": "B",
+          "t": "type=email 的输入框会由浏览器做基本的邮箱格式校验"
+        },
+        {
+          "k": "C",
+          "t": "在 form 上设置 novalidate 会关闭该表单的原生约束校验"
+        },
+        {
+          "k": "D",
+          "t": "label 的 for 属性值应与目标控件的 name 属性一致才能建立关联"
+        }
+      ],
+      "answer": [
+        "A",
+        "B",
+        "C"
+      ],
+      "explanation": {
+        "explain": "required、type=email、pattern 等构成 HTML 约束校验能力，浏览器会在提交时据此拦截非法输入；在表单上加 novalidate、或在提交按钮上加 formnovalidate 可关闭这一校验。label 的 for 关联的是目标控件的 id 而非 name，因此 D 错误。name 用于表单序列化提交，id 用于页面内唯一标识与关联，二者用途不同。合理使用原生校验能减少 JS 代码并提升可访问性，但不能替代服务端校验。",
+        "points": [
+          "required、type、pattern 触发原生约束校验",
+          "novalidate、formnovalidate 关闭校验",
+          "label 的 for 关联的是控件 id",
+          "name 用于提交，id 用于关联"
+        ],
+        "pitfalls": [
+          "混淆 for 应指向 id 还是 name",
+          "以为原生校验能取代服务端校验"
+        ],
+        "related": [
+          "约束校验 API",
+          "表单可访问性",
+          "自定义校验 setCustomValidity"
+        ]
+      }
+    },
+    {
+      "id": "html-script-004",
+      "type": "true_false",
+      "difficulty": "medium",
+      "tags": [
+        "HTML",
+        "script",
+        "性能"
+      ],
+      "stem": "带 defer 的外部脚本会在 HTML 解析的同时并行下载，并被推迟到文档解析完成后、按其在文档中出现的顺序、在 DOMContentLoaded 事件触发之前依次执行。该说法是否正确？",
+      "answer": true,
+      "explanation": {
+        "explain": "defer 使脚本异步下载而不阻塞 HTML 解析，脚本被推迟到文档解析完成后、DOMContentLoaded 之前按文档顺序依次执行，因此多个 defer 脚本能保证相对执行顺序。这与 async 不同：async 同样并行下载，但下载完成后立即执行、不保证顺序，也可能早于解析完成。defer 只对带 src 的外部脚本生效，对内联脚本无效。它是既不阻塞渲染又需保持依赖顺序脚本的推荐加载方式。",
+        "points": [
+          "defer 并行下载且不阻塞解析",
+          "按文档顺序执行，位于 DOMContentLoaded 之前",
+          "async 不保证顺序且下载完即执行",
+          "defer 仅对外部脚本生效"
+        ],
+        "pitfalls": [
+          "混淆 defer 与 async 的执行时机与顺序",
+          "对内联脚本使用 defer 期望其生效"
+        ],
+        "related": [
+          "async 属性",
+          "DOMContentLoaded 与 load 事件",
+          "脚本加载性能优化"
+        ]
+      }
+    },
+    {
+      "id": "html-a11y-005",
+      "type": "short_answer",
+      "difficulty": "hard",
+      "tags": [
+        "HTML",
+        "可访问性",
+        "ARIA"
+      ],
+      "stem": "简述在什么场景下应使用 ARIA 属性（如 role、aria-label、aria-live），以及“优先使用原生语义元素而非 ARIA”这一原则的含义。",
+      "reference": "ARIA 用于在原生 HTML 语义无法表达时补充可访问性信息，例如用 div 实现的自定义 tab、dialog、tree 等组件，需要 role 说明角色、aria-label 或 aria-labelledby 提供无障碍名称、aria-live 声明动态区域的更新播报方式。但 ARIA 只改变辅助技术读到的语义，不提供任何行为，键盘操作与焦点管理仍需自行实现。“优先原生语义”指能用 button、nav、input 等原生元素时就不要用 div 加 role 去模拟，因为原生元素自带语义、焦点与键盘行为；误用 ARIA 反而可能覆盖或破坏原有语义，即所谓“No ARIA is better than bad ARIA”。",
+      "keywords": [
+        "role",
+        "aria-label",
+        "aria-live",
+        "原生语义优先",
+        "No ARIA is better than bad ARIA",
+        "键盘可达"
+      ],
+      "selfAssess": true,
+      "explanation": {
+        "explain": "现代无障碍开发的核心是语义优先：HTML 原生元素已内建角色、状态与键盘交互，能满足绝大多数需求。ARIA 是补充层，仅在原生语义不足以描述自定义交互组件时使用，用来向屏幕阅读器等辅助技术暴露角色 role、名称 aria-label、状态如 aria-expanded 与动态更新 aria-live。关键前提是 ARIA 只改语义不加行为，开发者仍须自行实现焦点管理与键盘操作。滥用或错误的 ARIA 会覆盖原生语义、误导用户，故有“No ARIA is better than bad ARIA”之诫。",
+        "points": [
+          "原生语义元素自带角色、焦点与键盘行为",
+          "ARIA 用于补足自定义组件的语义",
+          "aria-live 声明动态内容的播报",
+          "ARIA 只改语义，不提供行为"
+        ],
+        "pitfalls": [
+          "用 div 加 role 重造 button 却忘了键盘可达",
+          "滥用 ARIA 覆盖或破坏原生语义"
+        ],
+        "related": [
+          "WAI-ARIA 设计模式",
+          "语义化 HTML",
+          "键盘可访问性"
+        ]
+      }
+    },
+    {
+      "id": "css-boxmodel-001",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": [
+        "CSS",
+        "盒模型",
+        "box-sizing"
+      ],
+      "stem": "一个元素设置 width:200px; padding:20px; border:5px solid; box-sizing:border-box; 那么它在页面上占据的边框盒总宽度（含 content、padding、border，不含 margin）是多少？",
+      "options": [
+        {
+          "k": "A",
+          "t": "200px"
+        },
+        {
+          "k": "B",
+          "t": "240px"
+        },
+        {
+          "k": "C",
+          "t": "250px"
+        },
+        {
+          "k": "D",
+          "t": "230px"
+        }
+      ],
+      "answer": "A",
+      "explanation": {
+        "explain": "box-sizing:border-box 时，width 指定的是包含 content、padding 与 border 在内的边框盒总宽度，因此总宽度就是 200px，内容区宽度被压缩为 200 减去左右 padding 40 再减去左右 border 10，等于 150px。若为默认的 content-box，width 只表示内容区，总宽会是 200 加 40 加 10 等于 250px。border-box 便于布局计算，是许多 CSS Reset 的默认设置。margin 永远不计入元素自身的盒宽度。",
+        "points": [
+          "border-box 下 width 含 content、padding、border",
+          "content-box（默认）下 width 仅为内容区",
+          "本例总宽为 200px，内容区为 150px",
+          "margin 不计入盒宽"
+        ],
+        "pitfalls": [
+          "默认 content-box 下忽略 padding、border 撑大元素",
+          "把 margin 也算进 width"
+        ],
+        "related": [
+          "标准盒模型与怪异盒模型",
+          "CSS Reset",
+          "外边距合并"
+        ]
+      }
+    },
+    {
+      "id": "css-specificity-002",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": [
+        "CSS",
+        "选择器",
+        "优先级"
+      ],
+      "stem": "下列四个选择器作用于同一元素，哪一个的优先级（specificity）最高？",
+      "options": [
+        {
+          "k": "A",
+          "t": "#nav .item a"
+        },
+        {
+          "k": "B",
+          "t": "div.item.active"
+        },
+        {
+          "k": "C",
+          "t": "ul li a.link"
+        },
+        {
+          "k": "D",
+          "t": ".item:hover"
+        }
+      ],
+      "answer": "A",
+      "explanation": {
+        "explain": "优先级按四元组（行内、id、类或伪类或属性、元素或伪元素）比较。A 含 1 个 id、1 个类、1 个元素，权重为 0,1,1,1；B 为 0,0,2,1；C 为 0,0,1,3；D 为 0,0,2,0。逐段从高位到低位比较，id 段更大者直接胜出，A 是唯一含 id 的选择器，故优先级最高。只要高位段更大，低位段再多也无法翻盘，即 id 恒高于任意数量的类。",
+        "points": [
+          "specificity 四元组：行内、id、类、元素",
+          "逐段从高到低比较，高位段一票否决",
+          "id 高于任意多个类",
+          "伪类计入类段，伪元素计入元素段"
+        ],
+        "pitfalls": [
+          "误以为选择器越长优先级越高",
+          "把伪元素当伪类计入类段"
+        ],
+        "related": [
+          "!important 与层叠",
+          ":where() 的零优先级",
+          "@layer 层叠层"
+        ]
+      }
+    },
+    {
+      "id": "css-flexbox-003",
+      "type": "multiple_choice",
+      "difficulty": "medium",
+      "tags": [
+        "CSS",
+        "Flexbox",
+        "布局"
+      ],
+      "stem": "关于 Flexbox 弹性布局，下列说法正确的有哪些？",
+      "options": [
+        {
+          "k": "A",
+          "t": "flex:1 是 flex-grow:1; flex-shrink:1; flex-basis:0% 的简写"
+        },
+        {
+          "k": "B",
+          "t": "justify-content 控制主轴方向上的对齐，align-items 控制交叉轴方向上的对齐"
+        },
+        {
+          "k": "C",
+          "t": "默认 flex-direction 为 row，主轴为水平方向"
+        },
+        {
+          "k": "D",
+          "t": "align-items 的默认值是 center"
+        }
+      ],
+      "answer": [
+        "A",
+        "B",
+        "C"
+      ],
+      "explanation": {
+        "explain": "flex:1 展开即 flex-grow:1、flex-shrink:1、flex-basis:0%，表示项目按剩余空间等比伸展。主轴由 flex-direction 决定，默认 row 即水平方向，justify-content 沿主轴对齐、align-items 沿交叉轴对齐。align-items 的默认值是 stretch，即在交叉轴上拉伸填满，而非 center，故 D 错误。理解主轴与交叉轴会随 flex-direction 变化，是掌握 Flexbox 的关键。",
+        "points": [
+          "flex:1 等于 grow1、shrink1、basis0%",
+          "主轴由 flex-direction 决定，默认 row",
+          "justify-content 主轴对齐，align-items 交叉轴对齐",
+          "align-items 默认 stretch"
+        ],
+        "pitfalls": [
+          "误记 align-items 默认为 center",
+          "改变 flex-direction 后混淆主轴与交叉轴"
+        ],
+        "related": [
+          "flex-basis 与 width 的关系",
+          "align-content 与多行",
+          "Grid 布局对比"
+        ]
+      }
+    },
+    {
+      "id": "css-position-004",
+      "type": "fill_blank",
+      "difficulty": "medium",
+      "tags": [
+        "CSS",
+        "定位",
+        "position"
+      ],
+      "mode": "ordered",
+      "stem": "补全 CSS position 取值：使元素脱离文档流、相对于最近的“已定位祖先”进行定位，使用 ______；使元素相对于视口固定、默认不随页面滚动，使用 ______。",
+      "blanks": [
+        {
+          "accept": [
+            {
+              "text": "absolute"
+            }
+          ],
+          "label": "相对已定位祖先"
+        },
+        {
+          "accept": [
+            {
+              "text": "fixed"
+            }
+          ],
+          "label": "相对视口固定"
+        }
+      ],
+      "explanation": {
+        "explain": "position:absolute 使元素脱离文档流，相对于最近的 position 非 static 的祖先（即已定位祖先，充当包含块）定位，若不存在则相对初始包含块。position:fixed 相对于视口定位，默认不随页面滚动，但当某个祖先建立了 transform、filter 或 perspective 等包含块时会改为相对该祖先。relative 相对自身原位置偏移且仍占据原空间；sticky 是 relative 与 fixed 的混合。理解“包含块”是掌握定位的关键。",
+        "points": [
+          "absolute 相对最近已定位祖先，脱离文档流",
+          "fixed 相对视口，默认不随滚动",
+          "relative 相对自身原位，仍占空间",
+          "sticky 是 relative 与 fixed 的混合"
+        ],
+        "pitfalls": [
+          "absolute 找不到已定位祖先时相对初始包含块",
+          "transform 祖先会改变 fixed 的包含块"
+        ],
+        "related": [
+          "包含块 containing block",
+          "z-index 与层叠上下文",
+          "sticky 定位"
+        ]
+      }
+    },
+    {
+      "id": "css-units-005",
+      "type": "matching",
+      "difficulty": "hard",
+      "tags": [
+        "CSS",
+        "单位",
+        "响应式"
+      ],
+      "stem": "将下列 CSS 长度单位与其定义正确匹配。",
+      "left": [
+        {
+          "id": "u_rem",
+          "t": "rem"
+        },
+        {
+          "id": "u_em",
+          "t": "em"
+        },
+        {
+          "id": "u_vw",
+          "t": "vw"
+        },
+        {
+          "id": "u_vh",
+          "t": "vh"
+        }
+      ],
+      "right": [
+        {
+          "id": "d_root",
+          "t": "相对于根元素 html 的 font-size"
+        },
+        {
+          "id": "d_self",
+          "t": "相对于当前元素自身计算后的 font-size"
+        },
+        {
+          "id": "d_vw",
+          "t": "视口宽度的 1%"
+        },
+        {
+          "id": "d_vh",
+          "t": "视口高度的 1%"
+        }
+      ],
+      "pairs": [
+        [
+          "u_rem",
+          "d_root"
+        ],
+        [
+          "u_em",
+          "d_self"
+        ],
+        [
+          "u_vw",
+          "d_vw"
+        ],
+        [
+          "u_vh",
+          "d_vh"
+        ]
+      ],
+      "explanation": {
+        "explain": "rem（root em）相对于根元素 html 的 font-size，常用于建立全局可缩放的间距体系；em 相对于当前元素自身计算后的 font-size（用于 font-size 属性本身时则相对父元素），容易产生嵌套复利效应。vw 与 vh 分别是视口宽度、高度的 1%，用于视口相关的流式尺寸。选择单位时应结合可访问性（rem 随用户字号缩放）与布局意图。",
+        "points": [
+          "rem 相对根元素 font-size",
+          "em 相对自身或父级 font-size，可嵌套累积",
+          "vw 等于视口宽度的 1%",
+          "vh 等于视口高度的 1%"
+        ],
+        "pitfalls": [
+          "em 嵌套导致尺寸复利放大",
+          "用 px 硬编码字号忽视用户缩放偏好"
+        ],
+        "related": [
+          "clamp、min、max 函数",
+          "container query 单位 cqw",
+          "可访问的字体缩放"
+        ]
+      }
+    },
+    {
+      "id": "js-typeof-001",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": [
+        "JavaScript",
+        "类型",
+        "typeof"
+      ],
+      "stem": "在 JavaScript 中，表达式 typeof null 的求值结果是？",
+      "options": [
+        {
+          "k": "A",
+          "t": "字符串 'null'"
+        },
+        {
+          "k": "B",
+          "t": "字符串 'object'"
+        },
+        {
+          "k": "C",
+          "t": "字符串 'undefined'"
+        },
+        {
+          "k": "D",
+          "t": "字符串 'number'"
+        }
+      ],
+      "answer": "B",
+      "explanation": {
+        "explain": "typeof null 返回字符串 'object'，这是 JavaScript 早期实现遗留的历史问题：值的类型标签中对象的标签位为 0，而 null 的机器表示恰为全 0，导致被判定为 object。该行为已被 ECMAScript 规范固化，出于向后兼容不会修复。判断一个值是否为 null 应直接用 value === null，而不能依赖 typeof。相比之下 typeof undefined 才返回 'undefined'。",
+        "points": [
+          "typeof null 结果为 'object' 属历史遗留",
+          "出于兼容性不会被修复",
+          "判空应使用 === null",
+          "typeof undefined 为 'undefined'"
+        ],
+        "pitfalls": [
+          "用 typeof 判断 null 导致漏判",
+          "误以为 typeof 能区分数组与普通对象（二者均为 object）"
+        ],
+        "related": [
+          "原始类型与包装对象",
+          "Array.isArray",
+          "== 与 === 比较"
+        ]
+      }
+    },
+    {
+      "id": "js-eventloop-002",
+      "type": "multiple_choice",
+      "difficulty": "medium",
+      "tags": [
+        "JavaScript",
+        "事件循环",
+        "异步"
+      ],
+      "stem": "关于浏览器事件循环（Event Loop）中的宏任务与微任务，下列说法正确的有哪些？",
+      "options": [
+        {
+          "k": "A",
+          "t": "Promise 的 then、catch 回调属于微任务"
+        },
+        {
+          "k": "B",
+          "t": "setTimeout 的回调属于宏任务"
+        },
+        {
+          "k": "C",
+          "t": "每执行完一个宏任务后，会先清空当前所有已入队的微任务，再进行下一个宏任务或渲染"
+        },
+        {
+          "k": "D",
+          "t": "queueMicrotask 注册的回调属于宏任务"
+        }
+      ],
+      "answer": [
+        "A",
+        "B",
+        "C"
+      ],
+      "explanation": {
+        "explain": "事件循环每次从宏任务队列取一个任务执行（如 script、setTimeout、事件回调），执行完后会把微任务队列全部清空（包括微任务中新产生的微任务），然后才可能渲染并进入下一轮。Promise 的 then、catch、finally 回调与 queueMicrotask 注册的回调都属于微任务，故 D 错误。正因微任务优先于下一个宏任务，链式 Promise 能在一次事件循环 tick 内连续结算。理解“每个宏任务后清空微任务”是判断异步执行顺序的关键。",
+        "points": [
+          "宏任务：script、setTimeout、事件回调",
+          "微任务：Promise 回调、queueMicrotask",
+          "每个宏任务后清空所有微任务",
+          "微任务优先于下一个宏任务与渲染"
+        ],
+        "pitfalls": [
+          "把 queueMicrotask 当宏任务",
+          "忽略微任务中再产生的微任务也会在本轮清空"
+        ],
+        "related": [
+          "Node.js 事件循环差异",
+          "requestAnimationFrame 时机",
+          "async/await 的微任务本质"
+        ]
+      }
+    },
+    {
+      "id": "js-closure-003",
+      "type": "code_output",
+      "difficulty": "medium",
+      "tags": [
+        "JavaScript",
+        "闭包",
+        "作用域"
+      ],
+      "stem": "阅读以下代码，写出控制台依次输出的内容（每行一个）。",
+      "media": [
+        {
+          "kind": "code",
+          "src": "for (var i = 0; i < 3; i++) {\n  setTimeout(() => console.log(i), 0);\n}\nfor (let j = 0; j < 3; j++) {\n  setTimeout(() => console.log(j), 0);\n}"
+        }
+      ],
+      "expected": "3\n3\n3\n0\n1\n2",
+      "explanation": {
+        "explain": "var 声明的 i 在函数级（此处为全局）作用域中是同一个变量，三个 setTimeout 回调共享它；同步循环结束后 i 已变为 3，等宏任务执行时三次都打印 3。let 声明的 j 具有块级作用域，每次迭代都会创建一个新的绑定，三个回调各自捕获当轮的 j，因此依次打印 0、1、2。两个循环的定时器回调都在同步代码结束后按注册顺序执行，故先输出三个 3 再输出 0、1、2。这是闭包捕获变量引用而非值、以及块级作用域差异的经典案例。",
+        "points": [
+          "var 无块级作用域，回调共享同一变量",
+          "循环结束后 i 已为 3",
+          "let 每次迭代创建新绑定",
+          "闭包捕获的是变量引用"
+        ],
+        "pitfalls": [
+          "以为闭包捕获的是循环当时的值",
+          "混淆宏任务执行时机与同步循环结束时机"
+        ],
+        "related": [
+          "块级作用域与暂时性死区",
+          "IIFE 老式解决方案",
+          "事件循环执行顺序"
+        ]
+      }
+    },
+    {
+      "id": "js-promise-004",
+      "type": "fill_blank",
+      "difficulty": "medium",
+      "tags": [
+        "JavaScript",
+        "Promise",
+        "异步"
+      ],
+      "mode": "ordered",
+      "stem": "补全 Promise 知识：一个 Promise 初始为 pending 状态，成功兑现后变为 ______ 状态，失败被拒绝后变为 ______ 状态；状态一旦敲定（settled）便不可再改变。",
+      "blanks": [
+        {
+          "accept": [
+            {
+              "text": "fulfilled"
+            },
+            {
+              "text": "resolved"
+            }
+          ],
+          "label": "成功状态"
+        },
+        {
+          "accept": [
+            {
+              "text": "rejected"
+            }
+          ],
+          "label": "失败状态"
+        }
+      ],
+      "explanation": {
+        "explain": "Promise 有 pending（进行中）、fulfilled（已兑现、成功）、rejected（已拒绝、失败）三种状态。初始为 pending，调用 resolve 后进入 fulfilled，调用 reject 或在执行器中抛出异常后进入 rejected。状态只能从 pending 单向转变为 fulfilled 或 rejected 之一，且一旦 settled（敲定）就不可逆，其结果值也随之固定。注意“resolved”一词在规范中指 Promise 的命运已确定（可能仍在跟随另一个 thenable），与最终态 fulfilled 并不完全等同。",
+        "points": [
+          "三态：pending、fulfilled、rejected",
+          "初始 pending，单向变为 fulfilled 或 rejected",
+          "settled 后状态与值不可变",
+          "resolve 不等同于 fulfill（可能跟随 thenable）"
+        ],
+        "pitfalls": [
+          "混淆 resolved 与 fulfilled",
+          "以为 Promise 状态可以来回切换"
+        ],
+        "related": [
+          "then、catch、finally",
+          "Promise.all、race、allSettled",
+          "async/await 与状态"
+        ]
+      }
+    },
+    {
+      "id": "js-prototype-005",
+      "type": "short_answer",
+      "difficulty": "hard",
+      "tags": [
+        "JavaScript",
+        "原型链",
+        "继承"
+      ],
+      "stem": "简述 JavaScript 的原型链机制：对象的 [[Prototype]]、构造函数的 prototype 属性，以及属性查找是如何沿原型链进行的。",
+      "reference": "每个对象都有一个内部槽 [[Prototype]]（可通过 Object.getPrototypeOf 读取，历史上用 __proto__ 访问），指向它的原型对象。通过 new Fn() 创建实例时，实例的 [[Prototype]] 被设置为 Fn.prototype，即构造函数上的 prototype 属性所指向的对象。当读取 obj.x 时，引擎先在对象自身属性中查找，找不到则沿 [[Prototype]] 链逐级向上查找，直到 Object.prototype，最终到 null 结束；找到即返回，否则得到 undefined。因此实例能共享构造函数 prototype 上定义的方法，这就是基于原型的委托式继承；class 语法只是这套机制的语法糖，extends 本质是配置原型链。写属性时通常直接写在对象自身上，不会修改原型（除非触发原型上的 setter）。",
+      "keywords": [
+        "[[Prototype]]",
+        "Object.getPrototypeOf",
+        "构造函数 prototype",
+        "逐级向上查找",
+        "Object.prototype 到 null",
+        "委托继承",
+        "class 语法糖"
+      ],
+      "selfAssess": true,
+      "explanation": {
+        "explain": "JavaScript 采用基于原型的委托继承：对象通过内部槽 [[Prototype]] 链接到原型对象，形成原型链。new 一个构造函数时，实例的 [[Prototype]] 指向该构造函数的 prototype 对象，因此实例可复用 prototype 上的方法。属性读取会先查自身，再沿原型链逐级上溯至 Object.prototype，直到 null 为止，找到即停。class 是这一机制的语法糖，extends 本质是设置原型链。理解 __proto__ 指向原型对象、而 prototype 是构造函数的属性，这一区别是关键。",
+        "points": [
+          "对象经 [[Prototype]] 链接成原型链",
+          "new 使实例 [[Prototype]] 指向构造函数 prototype",
+          "读属性沿链上溯至 null",
+          "class 与 extends 是原型机制的语法糖"
+        ],
+        "pitfalls": [
+          "混淆实例的 __proto__ 与构造函数的 prototype",
+          "以为写属性会修改原型"
+        ],
+        "related": [
+          "Object.create",
+          "instanceof 原理",
+          "class 私有字段"
+        ]
+      }
+    },
+    {
+      "id": "ts-unknown-001",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": [
+        "TypeScript",
+        "类型系统",
+        "unknown"
+      ],
+      "stem": "关于 TypeScript 中的 any 与 unknown，下列描述正确的是？",
+      "options": [
+        {
+          "k": "A",
+          "t": "unknown 类型的值可以直接赋给任意其他类型的变量，无需任何检查"
+        },
+        {
+          "k": "B",
+          "t": "any 会关闭类型检查，而 unknown 是类型安全的顶层类型，使用前必须先收窄"
+        },
+        {
+          "k": "C",
+          "t": "any 与 unknown 完全等价，只是命名不同"
+        },
+        {
+          "k": "D",
+          "t": "unknown 类型的值可以直接访问其任意属性或调用其任意方法"
+        }
+      ],
+      "answer": "B",
+      "explanation": {
+        "explain": "unknown 是类型安全的顶层类型（top type）：任何值都可赋给 unknown，但 unknown 的值在未经类型收窄（typeof、instanceof、类型守卫等）之前，不能赋给更具体的类型，也不能直接访问属性或调用方法。any 则完全绕过类型系统，既能被任意赋值也能被任意使用，并会向外传播、侵蚀类型安全。因此处理来源不确定的数据（如 JSON.parse、外部输入）应优先用 unknown 强制显式收窄。选项 A、C、D 都混淆了两者的安全边界。",
+        "points": [
+          "unknown 是类型安全的 top type",
+          "unknown 使用前必须收窄",
+          "any 关闭并以传播方式绕过类型检查",
+          "外部数据优先用 unknown"
+        ],
+        "pitfalls": [
+          "把 unknown 当 any 直接使用属性",
+          "滥用 any 导致类型安全丢失"
+        ],
+        "related": [
+          "类型守卫与收窄",
+          "never 底类型",
+          "strict 模式"
+        ]
+      }
+    },
+    {
+      "id": "ts-utility-002",
+      "type": "multiple_choice",
+      "difficulty": "medium",
+      "tags": [
+        "TypeScript",
+        "工具类型",
+        "泛型"
+      ],
+      "stem": "关于 TypeScript 内置工具类型（Utility Types），下列说法正确的有哪些？",
+      "options": [
+        {
+          "k": "A",
+          "t": "Partial<T> 将 T 的所有属性变为可选"
+        },
+        {
+          "k": "B",
+          "t": "Pick<T, K> 从 T 中挑选出键属于 K 的属性构成新类型"
+        },
+        {
+          "k": "C",
+          "t": "Readonly<T> 将 T 的所有属性变为只读"
+        },
+        {
+          "k": "D",
+          "t": "Record<K, T> 构造一个键为 K、值类型为 T 的对象类型"
+        }
+      ],
+      "answer": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ],
+      "explanation": {
+        "explain": "这四个都是 TypeScript 内置工具类型：Partial<T> 把所有属性变可选，Required<T> 反之；Pick<T,K> 从 T 中选取键集合 K 组成新类型，Omit<T,K> 则排除指定键；Readonly<T> 把所有属性标记为只读；Record<K,T> 构造以 K 为键、T 为值的映射对象类型。它们本质都由映射类型、条件类型等基础能力实现，理解其定义有助于编写自定义工具类型。四个描述均正确。",
+        "points": [
+          "Partial 全部可选，Required 全部必选",
+          "Pick 选取，Omit 排除",
+          "Readonly 全部只读",
+          "Record<K,T> 构造键值映射"
+        ],
+        "pitfalls": [
+          "混淆 Pick 与 Omit 的取舍方向",
+          "以为工具类型有运行时代码（实为纯类型）"
+        ],
+        "related": [
+          "映射类型",
+          "条件类型",
+          "keyof 与索引访问类型"
+        ]
+      }
+    },
+    {
+      "id": "ts-enum-003",
+      "type": "code_output",
+      "difficulty": "medium",
+      "tags": [
+        "TypeScript",
+        "枚举",
+        "编译"
+      ],
+      "stem": "以下 TypeScript 代码编译为 JavaScript 后运行，控制台依次输出什么（每行一个）？",
+      "media": [
+        {
+          "kind": "code",
+          "src": "enum Direction {\n  Up,\n  Down,\n  Left,\n  Right,\n}\nconsole.log(Direction.Up);\nconsole.log(Direction[0]);\nconsole.log(Direction.Right);"
+        }
+      ],
+      "expected": "0\nUp\n3",
+      "explanation": {
+        "explain": "数字枚举默认从 0 开始自增，故 Up 为 0、Down 为 1、Left 为 2、Right 为 3。TypeScript 的数字枚举会生成双向映射：既有名称到值（Direction.Up 等于 0），也有值到名称的反向映射（Direction[0] 等于字符串 'Up'）。因此 Direction.Up 输出 0，Direction[0] 输出 'Up'，Direction.Right 输出 3。注意字符串枚举不生成反向映射，而 const enum 会在编译期内联、不产生运行时对象。",
+        "points": [
+          "数字枚举默认从 0 自增",
+          "生成名称与值的双向映射",
+          "Direction[0] 反查得到 'Up'",
+          "字符串枚举无反向映射"
+        ],
+        "pitfalls": [
+          "以为枚举没有运行时对象",
+          "把数字枚举的反向映射用于字符串枚举"
+        ],
+        "related": [
+          "const enum 内联",
+          "字符串枚举",
+          "用联合类型替代枚举"
+        ]
+      }
+    },
+    {
+      "id": "ts-structural-004",
+      "type": "true_false",
+      "difficulty": "medium",
+      "tags": [
+        "TypeScript",
+        "类型系统",
+        "结构化类型"
+      ],
+      "stem": "TypeScript 采用结构化类型系统（structural typing）：只要两个类型的结构（成员形状）兼容，即使名称不同、也未显式声明继承关系，也可相互赋值。该说法是否正确？",
+      "answer": true,
+      "explanation": {
+        "explain": "TypeScript 的类型兼容性基于结构而非名义（nominal）：判断能否赋值看的是成员是否形状兼容（俗称鸭子类型），而不要求显式 implements 或 extends 同一声明。例如一个具有相同必需属性的对象字面量可赋给某接口类型，无需声明实现该接口。这带来灵活性，但也可能让本意无关的类型意外兼容；当需要名义化区分时可用带标记的 branded、opaque 类型模拟。class 的 private、protected 成员是少数引入名义特征的例外。",
+        "points": [
+          "结构化类型按成员形状判断兼容",
+          "无需显式继承声明",
+          "比 Java、C# 的名义类型更灵活",
+          "可用 branded type 模拟名义化"
+        ],
+        "pitfalls": [
+          "以为必须 implements 才兼容接口",
+          "忽视结构兼容导致的意外可赋值"
+        ],
+        "related": [
+          "接口与类型别名",
+          "类型收窄",
+          "private 成员带来的名义性"
+        ]
+      }
+    },
+    {
+      "id": "ts-variance-005",
+      "type": "short_answer",
+      "difficulty": "hard",
+      "tags": [
+        "TypeScript",
+        "类型系统",
+        "协变逆变"
+      ],
+      "stem": "简述为什么在严格模式下 TypeScript 函数类型的参数遵循逆变（contravariance），并说明 strictFunctionTypes 的作用。",
+      "reference": "类型安全地替换一个函数时，替代函数应能接受“更宽”的参数并返回“更窄”的结果，即参数逆变、返回值协变。直觉上：若某处期望一个能处理 Animal 的回调，传入一个只会处理 Dog 的函数是不安全的，因为它可能访问 Dog 特有成员而实参只是 Animal；因此参数类型只有更宽（朝 Animal 的超集方向）才能安全替换，这就是逆变。TypeScript 出于历史易用性对以方法语法声明的参数采用双变（bivariant）处理，但开启 strictFunctionTypes 后，会对以函数类型语法（而非方法）声明的参数启用严格的逆变检查，从而拒绝把 (x:Dog)=>void 赋给期望 (x:Animal)=>void 的位置。返回值方向相反、始终协变：返回更具体的子类型总是安全的。理解协变与逆变有助于正确设计回调与泛型约束，也与里氏替换原则一致。",
+      "keywords": [
+        "参数逆变",
+        "返回值协变",
+        "strictFunctionTypes",
+        "方法参数双变",
+        "类型安全替换",
+        "里氏替换原则"
+      ],
+      "selfAssess": true,
+      "explanation": {
+        "explain": "函数子类型判定遵循“参数逆变、返回值协变”：能安全替换原函数的新函数，其参数类型需更宽（逆变）、返回类型可更窄（协变），否则会在调用点引入不安全访问。TypeScript 出于历史易用性对方法形式的参数采用双变，但开启 strictFunctionTypes 后，会对以函数类型语法声明的参数施加严格逆变检查，从而拒绝把 (x:Dog)=>void 赋给期望 (x:Animal)=>void 的位置。返回值方向相反，返回子类型总是安全的。这与里氏替换原则一致。",
+        "points": [
+          "参数逆变、返回值协变",
+          "不安全替换发生在参数被窄化时",
+          "strictFunctionTypes 对函数类型参数启用严格检查",
+          "方法参数在历史上按双变处理"
+        ],
+        "pitfalls": [
+          "以为参数也应协变",
+          "忽略方法与函数类型语法在双变上的差异"
+        ],
+        "related": [
+          "里氏替换原则",
+          "泛型型变注解",
+          "数组协变的不安全性"
+        ]
+      }
+    },
+    {
+      "id": "react-key-001",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": [
+        "React",
+        "列表渲染",
+        "key"
+      ],
+      "stem": "在 React 中渲染列表时，为每个列表项提供 key 的主要作用是？",
+      "options": [
+        {
+          "k": "A",
+          "t": "设置列表项的 CSS 样式"
+        },
+        {
+          "k": "B",
+          "t": "帮助 React 在 diff 时稳定识别每个元素，从而高效复用与正确更新 DOM"
+        },
+        {
+          "k": "C",
+          "t": "作为组件的唯一 id 供 document.getElementById 使用"
+        },
+        {
+          "k": "D",
+          "t": "决定列表项的渲染顺序"
+        }
+      ],
+      "answer": "B",
+      "explanation": {
+        "explain": "key 是 React 用于在同层级兄弟节点间标识元素身份的提示：在 diff（协调）时，React 依据 key 判断哪些元素被保留、移动、新增或删除，从而最小化 DOM 操作并保持组件状态与正确对应关系。应使用数据中稳定、唯一的标识（如后端 id），避免用数组索引作 key，因为当列表发生插入、删除或重排时，索引 key 会导致状态错位或不必要的重渲染。key 不会作为 DOM 属性输出，也不能通过 props.key 读取。",
+        "points": [
+          "key 用于协调时稳定标识元素身份",
+          "减少 DOM 操作并正确保留状态",
+          "应使用稳定唯一 id，避免数组索引",
+          "key 不会渲染为 DOM 属性"
+        ],
+        "pitfalls": [
+          "用数组索引作 key 导致状态错位",
+          "误以为能通过 props.key 读取"
+        ],
+        "related": [
+          "虚拟 DOM 与 diff",
+          "受控组件状态",
+          "列表重排问题"
+        ]
+      }
+    },
+    {
+      "id": "react-hooks-002",
+      "type": "multiple_choice",
+      "difficulty": "medium",
+      "tags": [
+        "React",
+        "Hooks",
+        "useEffect"
+      ],
+      "stem": "关于 React Hooks 的使用规则与 useEffect，下列说法正确的有哪些？",
+      "options": [
+        {
+          "k": "A",
+          "t": "Hooks 必须在组件函数或自定义 Hook 的顶层调用，不能放在条件语句或循环中"
+        },
+        {
+          "k": "B",
+          "t": "useEffect 返回的清理函数会在组件卸载时、以及下一次 effect 重新执行之前被调用"
+        },
+        {
+          "k": "C",
+          "t": "依赖数组为空时，effect 只在组件挂载后执行一次（严格模式的开发环境会额外挂载卸载一次以帮助发现问题）"
+        },
+        {
+          "k": "D",
+          "t": "useEffect 的回调可以直接写成 async 函数，并把它返回的 Promise 当作清理函数"
+        }
+      ],
+      "answer": [
+        "A",
+        "B",
+        "C"
+      ],
+      "explanation": {
+        "explain": "Hooks 依赖稳定的调用顺序，故必须在顶层无条件调用，不能置于条件、循环或嵌套函数中。useEffect 返回的清理函数会在卸载时、以及下一次 effect 执行前调用，用于取消订阅、清除定时器等。空依赖数组表示 effect 只在挂载后运行一次；React 18 及以后严格模式的开发环境会故意挂载、卸载、再挂载以暴露副作用问题。effect 回调不能是 async 函数，因为那样返回的是 Promise 而非清理函数，需在内部再定义并调用 async 函数，故 D 错误。",
+        "points": [
+          "Hooks 必须顶层无条件调用",
+          "清理函数在卸载前与下次 effect 前运行",
+          "空依赖表示挂载后执行一次",
+          "effect 回调不能是 async 函数"
+        ],
+        "pitfalls": [
+          "在条件或循环里调用 Hook 破坏调用顺序",
+          "把 effect 回调写成 async 导致清理失效"
+        ],
+        "related": [
+          "useLayoutEffect 的差异",
+          "严格模式的双重调用",
+          "依赖数组与闭包陷阱"
+        ]
+      }
+    },
+    {
+      "id": "react-batching-003",
+      "type": "true_false",
+      "difficulty": "medium",
+      "tags": [
+        "React",
+        "状态",
+        "批处理"
+      ],
+      "stem": "在 React 18 及以后，默认情况下即使在 setTimeout 或 Promise 回调等异步场景中触发的多次 setState，也会被自动批处理（automatic batching），合并为一次重新渲染。该说法是否正确？",
+      "answer": true,
+      "explanation": {
+        "explain": "React 18 引入了自动批处理：不仅在事件处理函数内，setTimeout、Promise、原生事件等任意来源的多次状态更新都会被自动合并，以减少不必要的重渲染。React 17 及之前只在 React 事件处理器内批处理，异步回调中的更新则各自触发一次渲染。若确需在某处强制同步刷新，可用 flushSync 包裹相应更新。理解批处理有助于避免对“每次 setState 立即渲染、立即读到新值”的误解。",
+        "points": [
+          "React 18 自动批处理覆盖异步回调",
+          "减少重复渲染",
+          "React 17 仅在事件处理器内批处理",
+          "flushSync 可强制同步刷新"
+        ],
+        "pitfalls": [
+          "以为异步回调里的 setState 各触发一次渲染",
+          "依赖 state 在 setState 后立即更新"
+        ],
+        "related": [
+          "flushSync",
+          "函数式更新 setState(fn)",
+          "并发渲染"
+        ]
+      }
+    },
+    {
+      "id": "react-lifecycle-004",
+      "type": "ordering",
+      "difficulty": "medium",
+      "tags": [
+        "React",
+        "渲染流程",
+        "副作用"
+      ],
+      "stem": "将函数组件一次“挂载”过程中的下列阶段，按 React 实际执行的先后顺序从最先到最后排列。",
+      "items": [
+        {
+          "id": "r_render",
+          "t": "执行组件函数、计算并返回 JSX（渲染阶段）"
+        },
+        {
+          "id": "r_commit",
+          "t": "React 将结果提交并更新真实 DOM（提交阶段）"
+        },
+        {
+          "id": "r_paint",
+          "t": "浏览器据此绘制屏幕"
+        },
+        {
+          "id": "r_effect",
+          "t": "执行 useEffect 的副作用回调"
+        }
+      ],
+      "order": [
+        "r_render",
+        "r_commit",
+        "r_paint",
+        "r_effect"
+      ],
+      "orderScoring": "position",
+      "explanation": {
+        "explain": "函数组件挂载时，React 先在渲染阶段调用组件函数计算出要显示的 JSX，此阶段应保持纯净、无副作用；随后进入提交阶段，把变更写入真实 DOM；浏览器据此绘制屏幕；useEffect（被动副作用）被安排在绘制之后异步执行，以避免阻塞视觉更新。若使用 useLayoutEffect，则会在 DOM 提交后、绘制之前同步执行，适合需要读取布局并同步调整的场景。理解“渲染保持纯净、副作用在提交后”是 React 心智模型的核心。",
+        "points": [
+          "渲染阶段调用组件函数得到 JSX（应纯净）",
+          "提交阶段更新真实 DOM",
+          "useEffect 在绘制后异步执行",
+          "useLayoutEffect 在绘制前同步执行"
+        ],
+        "pitfalls": [
+          "在渲染阶段直接执行副作用",
+          "混淆 useEffect 与 useLayoutEffect 的时机"
+        ],
+        "related": [
+          "render 与 commit 两阶段",
+          "useLayoutEffect",
+          "并发特性与可中断渲染"
+        ]
+      }
+    },
+    {
+      "id": "react-perf-005",
+      "type": "essay",
+      "difficulty": "hard",
+      "tags": [
+        "React",
+        "性能优化",
+        "React19"
+      ],
+      "stem": "论述在 React 中优化重渲染性能的常见手段，并说明 React 19 的自动优化（如 React Compiler）如何改变这些实践。",
+      "reference": "传统手段包括：用 React.memo 记忆化组件以在 props 未变化时跳过重渲染；用 useMemo 缓存昂贵计算结果、useCallback 稳定传给子组件的函数引用以配合 memo 生效；合理拆分组件与状态下沉，缩小重渲染范围；使用稳定的 key、避免在渲染中创建新对象或内联对象作为 props；对长列表采用虚拟化，只渲染可视区。这些手动记忆化容易遗漏依赖或被过度使用，增加心智负担。React 19 引入的 React Compiler（编译期自动记忆化）能在构建时分析组件，自动插入等价于 memo、useMemo、useCallback 的缓存，使开发者在多数场景下无需手写这些优化即可获得细粒度更新；此外 useTransition、useDeferredValue 等并发特性可将非紧急更新降级、保持交互流畅。实践上应先用 Profiler 定位真实瓶颈，再决定手动优化还是依赖编译器，避免过早优化。",
+      "rubric": [
+        {
+          "point": "列举 memo、useMemo、useCallback 等记忆化手段及其配合关系",
+          "weight": 3
+        },
+        {
+          "point": "提及组件拆分、状态下沉、避免内联新对象、长列表虚拟化",
+          "weight": 2
+        },
+        {
+          "point": "说明 React Compiler 编译期自动记忆化如何减少手动优化",
+          "weight": 3
+        },
+        {
+          "point": "强调先用 Profiler 定位瓶颈、避免过早优化",
+          "weight": 2
+        }
+      ],
+      "selfAssess": true,
+      "explanation": {
+        "explain": "React 重渲染优化的核心是减少不必要的子树重算与 DOM 更新。经典做法是记忆化：React.memo 跳过 props 未变的组件，useMemo 与 useCallback 稳定引用以让 memo 生效，配合组件拆分、状态下沉与列表虚拟化缩小影响面。但手写记忆化易错且冗长。React 19 的 React Compiler 在编译期自动完成等价记忆化，多数场景不再需要手动 memo；并发特性 useTransition、useDeferredValue 则通过区分紧急与非紧急更新保持响应。方法论上应以 Profiler 数据驱动，避免过早优化。",
+        "points": [
+          "记忆化：memo、useMemo、useCallback 相互配合",
+          "拆分组件、状态下沉、列表虚拟化",
+          "React Compiler 编译期自动记忆化",
+          "并发特性降级非紧急更新",
+          "以 Profiler 定位瓶颈"
+        ],
+        "pitfalls": [
+          "到处 useMemo、useCallback 反而增加负担",
+          "不测量就凭感觉优化"
+        ],
+        "related": [
+          "React Compiler",
+          "useTransition 与 useDeferredValue",
+          "React DevTools Profiler"
+        ]
+      }
+    },
+    {
+      "id": "vue-vif-001",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": [
+        "Vue",
+        "指令",
+        "v-if"
+      ],
+      "stem": "关于 Vue 中 v-if 与 v-show 的区别，下列描述正确的是？",
+      "options": [
+        {
+          "k": "A",
+          "t": "v-if 通过切换 CSS display 控制显隐，v-show 通过增删 DOM 控制显隐"
+        },
+        {
+          "k": "B",
+          "t": "v-if 是真正的条件渲染，会创建或销毁 DOM；v-show 始终渲染 DOM，仅切换 CSS display"
+        },
+        {
+          "k": "C",
+          "t": "二者完全等价，可随意替换"
+        },
+        {
+          "k": "D",
+          "t": "v-show 支持 template 元素，且初始渲染开销更低"
+        }
+      ],
+      "answer": "B",
+      "explanation": {
+        "explain": "v-if 是条件渲染：条件为假时元素及其内部组件根本不会被渲染（不创建 DOM），切换时会销毁或重建并触发相应生命周期，初始为假时开销更低，适合运行时很少改变的场景。v-show 则始终渲染并保留在 DOM 中，仅通过 CSS display 在显示与 none 之间切换，切换成本低，适合频繁切换的场景。因此 A 把两者说反了；v-show 不支持 template 且初始总会渲染，故 D 错误。选择依据是切换频率与初始成本的权衡。",
+        "points": [
+          "v-if 创建或销毁 DOM，属惰性渲染",
+          "v-show 始终渲染，仅切换 display",
+          "频繁切换用 v-show，很少变用 v-if",
+          "v-show 不支持 template"
+        ],
+        "pitfalls": [
+          "把 v-if 与 v-show 的实现说反",
+          "对频繁切换使用 v-if 造成反复重建"
+        ],
+        "related": [
+          "v-if、v-else-if、v-else",
+          "v-for 与 v-if 的优先级",
+          "组件生命周期"
+        ]
+      }
+    },
+    {
+      "id": "vue-vmodel-002",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": [
+        "Vue",
+        "v-model",
+        "双向绑定"
+      ],
+      "stem": "在 Vue 3 中，对一个原生 input 使用 v-model=\"text\"，本质上等价于下列哪种“绑定值 + 监听事件”的组合？",
+      "options": [
+        {
+          "k": "A",
+          "t": ":value=\"text\" 配合 @input=\"text = $event.target.value\""
+        },
+        {
+          "k": "B",
+          "t": ":value=\"text\" 配合 @change=\"text = $event.target.value\""
+        },
+        {
+          "k": "C",
+          "t": ":model=\"text\" 配合 @update=\"text = $event\""
+        },
+        {
+          "k": "D",
+          "t": ":text=\"text\" 配合 @click=\"text = $event\""
+        }
+      ],
+      "answer": "A",
+      "explanation": {
+        "explain": "对原生文本输入框，v-model=text 是语法糖，等价于绑定 :value=text 并监听 input 事件把最新值写回，即 @input 里执行 text = $event.target.value。它默认使用 input 事件实现即时更新，可用 .lazy 修饰符改为监听 change。对自定义组件，Vue 3 的 v-model 默认展开为 :modelValue 与 @update:modelValue，并支持具名如 v-model:title。理解其“绑定值加监听更新事件”的本质，有助于为自定义组件实现双向绑定。",
+        "points": [
+          "原生输入 v-model 等于 :value 加 @input",
+          "可用 .lazy 改为 change 事件",
+          "组件上 v-model 等于 :modelValue 加 @update:modelValue",
+          "支持具名 v-model:xxx"
+        ],
+        "pitfalls": [
+          "以为原生 v-model 用的是 change 事件",
+          "把 Vue2 的 value、input 约定照搬到 Vue3 组件"
+        ],
+        "related": [
+          "自定义组件的 v-model",
+          "修饰符 .lazy、.number、.trim",
+          "多个 v-model 绑定"
+        ]
+      }
+    },
+    {
+      "id": "vue-reactivity-003",
+      "type": "multiple_choice",
+      "difficulty": "medium",
+      "tags": [
+        "Vue",
+        "响应式",
+        "ref"
+      ],
+      "stem": "关于 Vue 3 组合式 API 中的 ref 与 reactive，下列说法正确的有哪些？",
+      "options": [
+        {
+          "k": "A",
+          "t": "在 script 的 JS 逻辑中访问 ref 的值需要通过 .value"
+        },
+        {
+          "k": "B",
+          "t": "reactive 只能用于对象、数组等引用类型，对原始值无效"
+        },
+        {
+          "k": "C",
+          "t": "在模板中使用顶层 ref 时会被自动解包，无需写 .value"
+        },
+        {
+          "k": "D",
+          "t": "对 reactive 对象进行解构赋值后，得到的原始值变量仍保持响应式"
+        }
+      ],
+      "answer": [
+        "A",
+        "B",
+        "C"
+      ],
+      "explanation": {
+        "explain": "ref 可包裹任意值，在 JS 中通过 .value 读写，在模板中作为顶层属性会被自动解包直接使用。reactive 基于 Proxy 实现，只能代理对象、数组、Map、Set 等引用类型，传入原始值无效且会失去响应式。对 reactive 对象直接解构会断开响应式连接，得到的是普通值快照，需用 toRefs 或 toRef 保持响应式，故 D 错误。一般建议：原始值用 ref，成组的相关状态可用 reactive，但要注意解构与整体替换对象的陷阱。",
+        "points": [
+          "ref 在 JS 中用 .value，模板中自动解包",
+          "reactive 仅代理对象等引用类型",
+          "解构 reactive 会丢失响应式",
+          "用 toRefs 保持解构后的响应式"
+        ],
+        "pitfalls": [
+          "解构 reactive 后丢失响应式",
+          "对原始值使用 reactive"
+        ],
+        "related": [
+          "toRefs 与 toRef",
+          "shallowRef 与 shallowReactive",
+          "Proxy 响应式原理"
+        ]
+      }
+    },
+    {
+      "id": "vue-lifecycle-004",
+      "type": "true_false",
+      "difficulty": "medium",
+      "tags": [
+        "Vue",
+        "生命周期",
+        "组合式API"
+      ],
+      "stem": "在 Vue 3 组合式 API 中，setup（或 script setup 顶层）的执行时机早于 created，因此没有对应的 onCreated 钩子，原本要在 created 里做的初始化逻辑可直接写在 setup 中。该说法是否正确？",
+      "answer": true,
+      "explanation": {
+        "explain": "组合式 API 的 setup 在组件实例创建过程中、位于 beforeCreate 与 created 之间运行，此时已可进行数据与逻辑初始化，因此 Vue 没有提供 onBeforeCreate、onCreated 钩子，这些原本在 created 里做的事直接写在 setup 顶层即可。其余钩子以 onXxx 形式提供，如 onMounted、onUpdated、onBeforeUnmount、onUnmounted 等。选项式 API 的 mounted 对应组合式的 onMounted。理解这一映射有助于从选项式迁移到组合式 API。",
+        "points": [
+          "setup 在 beforeCreate 与 created 之间执行",
+          "没有 onCreated，初始化直接写在 setup",
+          "onMounted、onUnmounted 等以 onXxx 提供",
+          "对应选项式的生命周期钩子"
+        ],
+        "pitfalls": [
+          "在 setup 里寻找 onCreated 钩子",
+          "混淆 onBeforeUnmount 与 onUnmounted 的时机"
+        ],
+        "related": [
+          "选项式与组合式生命周期对照",
+          "onMounted",
+          "script setup 语法糖"
+        ]
+      }
+    },
+    {
+      "id": "vue-proxy-005",
+      "type": "short_answer",
+      "difficulty": "hard",
+      "tags": [
+        "Vue",
+        "响应式原理",
+        "Proxy"
+      ],
+      "stem": "简述 Vue 3 响应式系统的基本原理，以及它相较 Vue 2 使用 Object.defineProperty 的方案有哪些改进。",
+      "reference": "Vue 3 用 ES6 Proxy 代理整个对象，在其 get 拦截中进行依赖收集（track）、在 set、deleteProperty 等拦截中触发更新（trigger），配合 effect（副作用函数）建立数据到依赖的映射关系，数据变化时精准重新运行相关 effect。相比 Vue 2 基于 Object.defineProperty 逐属性劫持的方案，Proxy 能拦截属性的新增与删除、数组索引与 length 的变更，因此无需 Vue.set 与 Vue.delete，也不必对数组方法打补丁；且它对嵌套对象采用惰性递归代理（访问到才代理），初始化开销更小、内存更省。ref 用于包裹原始值，通过 .value 的 getter、setter 实现响应式；reactive 用于对象。主要局限是 Proxy 不被 IE11 支持，且对 reactive 对象解构会断开响应式连接。",
+      "keywords": [
+        "Proxy",
+        "track 依赖收集",
+        "trigger 触发更新",
+        "effect 副作用",
+        "可拦截属性增删",
+        "惰性递归代理",
+        "无需 Vue.set",
+        "不支持 IE11"
+      ],
+      "selfAssess": true,
+      "explanation": {
+        "explain": "Vue 3 以 Proxy 代理对象，在读取时通过 track 收集当前运行的 effect 作为依赖，在写入或删除时通过 trigger 通知这些依赖重新执行，从而实现响应式更新。相较 Vue 2 的 Object.defineProperty 逐属性劫持，Proxy 天然支持属性的新增删除，以及数组索引、length 变化的侦测，免去 Vue.set 与数组方法补丁；并采用惰性递归代理降低初始化成本。原始值用 ref（通过 .value）承载响应式，对象用 reactive。代价是不兼容 IE11，且解构会丢失响应式连接。",
+        "points": [
+          "Proxy 拦截 get、set 实现 track 与 trigger",
+          "effect 建立数据到依赖的映射",
+          "可侦测属性增删与数组变化",
+          "惰性递归代理更省资源",
+          "ref 包裹原始值，reactive 代理对象"
+        ],
+        "pitfalls": [
+          "以为 Vue3 仍需 Vue.set",
+          "忽视 Proxy 不支持 IE11"
+        ],
+        "related": [
+          "独立的 @vue/reactivity 包",
+          "computed 与 watchEffect",
+          "解构响应式的陷阱"
+        ]
+      }
+    },
+    {
+      "id": "browser-repaint-001",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": [
+        "浏览器",
+        "渲染",
+        "重排重绘"
+      ],
+      "stem": "下列哪一项操作通常只会引起“重绘（repaint）”，而不会引起“重排、回流（reflow）”？",
+      "options": [
+        {
+          "k": "A",
+          "t": "修改元素的 width 或 height"
+        },
+        {
+          "k": "B",
+          "t": "仅修改元素的 color 或 background-color"
+        },
+        {
+          "k": "C",
+          "t": "向 DOM 中插入一个新的可见元素"
+        },
+        {
+          "k": "D",
+          "t": "修改元素的 margin 或 padding"
+        }
+      ],
+      "answer": "B",
+      "explanation": {
+        "explain": "重排（reflow）指几何属性变化导致浏览器重新计算元素的位置与尺寸，如改变 width、height、margin、padding、增删可见节点，或读取 offsetTop 等都会触发；重绘（repaint）指外观改变但不影响布局，如颜色、背景色、visibility 等。仅改 color 或 background-color 属于重绘、不触发重排，代价相对较小。而 A、C、D 都会改变布局几何，必然引发重排，且重排通常伴随重绘。优化时应尽量批量修改、并使用 transform 或 opacity 走合成层以避免重排重绘。",
+        "points": [
+          "重排：尺寸、位置、增删节点等几何变化",
+          "重绘：仅颜色等外观变化",
+          "重排必然引发重绘，反之不一定",
+          "transform、opacity 可只走合成，避免重排重绘"
+        ],
+        "pitfalls": [
+          "以为改颜色也会重排",
+          "频繁读取 offset 等触发强制同步布局"
+        ],
+        "related": [
+          "合成层与 GPU 加速",
+          "强制同步布局（layout thrashing）",
+          "关键渲染路径"
+        ]
+      }
+    },
+    {
+      "id": "browser-storage-002",
+      "type": "multiple_choice",
+      "difficulty": "medium",
+      "tags": [
+        "浏览器",
+        "存储",
+        "localStorage"
+      ],
+      "stem": "关于浏览器端的 localStorage、sessionStorage 与 Cookie，下列说法正确的有哪些？",
+      "options": [
+        {
+          "k": "A",
+          "t": "localStorage 持久保存，除非手动清除；sessionStorage 在页面会话（标签页）结束时清除"
+        },
+        {
+          "k": "B",
+          "t": "每次同源 HTTP 请求都会自动携带匹配的 Cookie，而 localStorage、sessionStorage 不会随请求自动发送"
+        },
+        {
+          "k": "C",
+          "t": "localStorage 与 sessionStorage 的容量通常远大于 Cookie（Cookie 一般约 4KB）"
+        },
+        {
+          "k": "D",
+          "t": "sessionStorage 在同源的不同标签页之间共享同一份数据"
+        }
+      ],
+      "answer": [
+        "A",
+        "B",
+        "C"
+      ],
+      "explanation": {
+        "explain": "localStorage 长期持久，除非用户或代码清除；sessionStorage 的生命周期与页面会话绑定，标签页关闭即清除，且每个标签页独立、不跨标签共享，故 D 错误。Cookie 会在每次向同源（且域、路径匹配）发起的请求中自动携带，适合会话标识，但也因此增加请求体积，容量约 4KB。localStorage 与 sessionStorage 容量通常在 5MB 量级、不随请求自动发送，适合存放较大的本地数据。选择存储方案要权衡持久性、作用域，以及是否需随请求发送。",
+        "points": [
+          "localStorage 持久、sessionStorage 会话级",
+          "sessionStorage 每标签页独立、不共享",
+          "Cookie 随请求自动发送，约 4KB",
+          "Web Storage 容量更大且不随请求发送"
+        ],
+        "pitfalls": [
+          "以为 sessionStorage 跨标签共享",
+          "把大量数据塞进 Cookie 拖慢请求"
+        ],
+        "related": [
+          "Cookie 的 HttpOnly、Secure、SameSite",
+          "IndexedDB",
+          "同源策略"
+        ]
+      }
+    },
+    {
+      "id": "browser-crp-003",
+      "type": "ordering",
+      "difficulty": "medium",
+      "tags": [
+        "浏览器",
+        "关键渲染路径",
+        "性能"
+      ],
+      "stem": "按经典关键渲染路径（Critical Rendering Path）模型，将浏览器从解析到首次绘制的主要步骤按先后顺序排列。",
+      "items": [
+        {
+          "id": "c_dom",
+          "t": "解析 HTML 构建 DOM 树"
+        },
+        {
+          "id": "c_cssom",
+          "t": "解析 CSS 构建 CSSOM 树"
+        },
+        {
+          "id": "c_render",
+          "t": "合并 DOM 与 CSSOM 生成渲染树（Render Tree）"
+        },
+        {
+          "id": "c_layout",
+          "t": "布局（Layout、Reflow）计算每个节点的几何位置与大小"
+        },
+        {
+          "id": "c_paint",
+          "t": "绘制（Paint）与合成，最终显示到屏幕"
+        }
+      ],
+      "order": [
+        "c_dom",
+        "c_cssom",
+        "c_render",
+        "c_layout",
+        "c_paint"
+      ],
+      "orderScoring": "position",
+      "explanation": {
+        "explain": "关键渲染路径的经典模型为：先解析 HTML 生成 DOM 树、解析 CSS 生成 CSSOM 树；随后将二者合并为只含可见节点的渲染树；再进行布局，计算每个节点的确切位置与大小；最后进入绘制与合成，把像素显示到屏幕。DOM 与 CSSOM 的构建在工程上可并行推进，但渲染树必须等两者就绪；由于 CSSOM 会阻塞渲染、外部脚本可能阻塞解析，优化关键渲染路径常从减少关键资源、内联首屏 CSS、异步脚本入手。理解该链路是首屏性能优化的基础。",
+        "points": [
+          "DOM 与 CSSOM 合并为渲染树",
+          "渲染树只含可见节点",
+          "布局算几何，绘制与合成出像素",
+          "CSS 阻塞渲染，脚本可阻塞解析"
+        ],
+        "pitfalls": [
+          "以为渲染树包含 display:none 节点",
+          "忽视 CSS、JS 对关键路径的阻塞"
+        ],
+        "related": [
+          "首屏性能优化",
+          "阻塞渲染的资源",
+          "reflow 与 repaint"
+        ]
+      }
+    },
+    {
+      "id": "browser-cache-004",
+      "type": "fill_blank",
+      "difficulty": "medium",
+      "tags": [
+        "浏览器",
+        "HTTP缓存",
+        "缓存"
+      ],
+      "mode": "ordered",
+      "stem": "补全 HTTP 缓存知识：控制强缓存的响应头之一是 Cache-Control，其指令 ______ 用于以“秒”为单位指定资源的新鲜时长；在协商缓存中，服务器通过响应头 ______ 返回资源的摘要标识，浏览器下次用 If-None-Match 带回校验，若资源未变则返回状态码 304。",
+      "blanks": [
+        {
+          "accept": [
+            {
+              "text": "max-age"
+            }
+          ],
+          "label": "新鲜时长指令"
+        },
+        {
+          "accept": [
+            {
+              "text": "ETag"
+            },
+            {
+              "text": "Etag"
+            },
+            {
+              "text": "etag"
+            }
+          ],
+          "label": "资源摘要头"
+        }
+      ],
+      "explanation": {
+        "explain": "HTTP 缓存分为强缓存与协商缓存。强缓存由 Cache-Control（如 max-age 指定秒数，优先级高于旧的 Expires）控制：在新鲜期内浏览器直接复用本地副本、不发请求，开发者工具会显示 from memory 或 disk cache。协商缓存在强缓存失效后触发：服务器用 ETag（资源摘要）或 Last-Modified 标识版本，浏览器分别用 If-None-Match 或 If-Modified-Since 回传校验；若资源未变，服务器返回 304 Not Modified 让浏览器复用缓存，否则返回 200 与新内容。ETag 比 Last-Modified 更精确，不受秒级时间粒度限制。",
+        "points": [
+          "强缓存 Cache-Control 用 max-age 指定新鲜秒数",
+          "命中强缓存不发请求（from cache）",
+          "协商缓存用 ETag、Last-Modified 校验",
+          "未变返回 304，变了返回 200"
+        ],
+        "pitfalls": [
+          "混淆强缓存与协商缓存的触发时机",
+          "以为 304 也会重新下载资源体"
+        ],
+        "related": [
+          "Cache-Control 的 no-cache、no-store",
+          "Last-Modified 与 If-Modified-Since",
+          "CDN 缓存"
+        ]
+      }
+    },
+    {
+      "id": "browser-security-005",
+      "type": "essay",
+      "difficulty": "hard",
+      "tags": [
+        "浏览器",
+        "Web安全",
+        "XSS"
+      ],
+      "stem": "论述 XSS（跨站脚本）与 CSRF（跨站请求伪造）两类攻击的原理与区别，并分别给出主要防御手段。",
+      "reference": "XSS 是攻击者把恶意脚本注入页面并在受害者浏览器中执行，分为存储型（恶意内容持久化于服务端）、反射型（经 URL 参数即时回显）与 DOM 型（前端 JS 不安全地把输入写入 DOM）。危害包括窃取 Cookie 或令牌、伪造用户操作等。防御以“按上下文输出编码加输入校验”为主：对动态内容做 HTML、属性、JS 上下文编码，优先使用框架的自动转义，避免 innerHTML 或 dangerouslySetInnerHTML，部署 CSP 限制可执行脚本来源，并给 Cookie 设 HttpOnly 降低被盗风险。CSRF 则利用用户已登录的身份态，诱导其浏览器向目标站点发起非预期的带凭证请求，攻击者并不需要读取响应，只借用户身份执行写操作。防御手段包括 CSRF Token（服务端下发、请求时校验，攻击者无法预知）、SameSite Cookie（Lax 或 Strict 限制跨站自动携带 Cookie）、校验 Origin 或 Referer，以及对敏感操作二次确认。核心区别：XSS 是注入并执行脚本（信任了不可信内容），CSRF 是冒用已认证身份发请求（信任了来路不明的请求）；二者可叠加，XSS 往往能绕过 CSRF 防护，故 XSS 防御更为根本。",
+      "rubric": [
+        {
+          "point": "说明 XSS 原理及存储、反射、DOM 三种类型",
+          "weight": 3
+        },
+        {
+          "point": "给出 XSS 防御：输出编码、框架自动转义、CSP、HttpOnly",
+          "weight": 2
+        },
+        {
+          "point": "说明 CSRF 借用已登录态发起非预期请求",
+          "weight": 2
+        },
+        {
+          "point": "给出 CSRF 防御：Token、SameSite、校验 Origin",
+          "weight": 2
+        },
+        {
+          "point": "点明二者区别，以及 XSS 可绕过 CSRF 防护",
+          "weight": 1
+        }
+      ],
+      "selfAssess": true,
+      "explanation": {
+        "explain": "XSS 与 CSRF 是两类经典 Web 攻击。XSS 通过把恶意脚本注入页面并在受害者浏览器执行（存储型、反射型、DOM 型），可窃取凭证或伪造操作，防御以按上下文的输出编码、框架自动转义、避免 innerHTML、CSP 与 HttpOnly Cookie 为主。CSRF 则利用用户已登录态诱导浏览器发起带凭证的非预期写请求，攻击者无需读取响应，防御靠 CSRF Token、SameSite Cookie 与 Origin、Referer 校验。本质区别：XSS 信任了不可信的内容并执行脚本，CSRF 信任了来路不明的请求；且 XSS 往往能绕过 CSRF 防护，因此更为根本。",
+        "points": [
+          "XSS：注入并执行脚本（存储、反射、DOM 型）",
+          "XSS 防御：输出编码、自动转义、CSP、HttpOnly",
+          "CSRF：冒用登录态发起非预期请求",
+          "CSRF 防御：Token、SameSite、校验 Origin",
+          "XSS 可绕过 CSRF 防护，更为根本"
+        ],
+        "pitfalls": [
+          "只做输入过滤而不按上下文输出编码",
+          "以为仅靠 SameSite 就能完全防住 CSRF"
+        ],
+        "related": [
+          "内容安全策略 CSP",
+          "SameSite Cookie",
+          "点击劫持与 X-Frame-Options"
+        ]
+      }
+    },
+    {
+      "id": "net-method-001",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": [
+        "网络",
+        "HTTP",
+        "请求方法"
+      ],
+      "stem": "关于 HTTP 请求方法的语义，下列描述正确的是？",
+      "options": [
+        {
+          "k": "A",
+          "t": "GET 用于获取资源，被定义为安全（不改变服务器状态）且幂等"
+        },
+        {
+          "k": "B",
+          "t": "POST 是幂等的，重复提交同一请求不会产生额外副作用"
+        },
+        {
+          "k": "C",
+          "t": "PUT 用于部分更新资源，PATCH 用于整体替换资源"
+        },
+        {
+          "k": "D",
+          "t": "DELETE 不是幂等的"
+        }
+      ],
+      "answer": "A",
+      "explanation": {
+        "explain": "GET 语义上用于读取资源，被定义为安全（不应改变服务器状态）且幂等（多次请求效果相同）。POST 用于提交或创建，通常不幂等，重复提交可能产生多条记录。PUT 表示用请求体整体替换目标资源、是幂等的；PATCH 表示局部更新，故 C 把两者说反了。DELETE 语义上是幂等的，删除一次与删除多次的最终状态一致，故 D 错误。理解安全与幂等语义有助于设计可靠的接口与重试策略。",
+        "points": [
+          "GET 安全且幂等",
+          "POST 通常不幂等",
+          "PUT 整体替换（幂等）、PATCH 局部更新",
+          "DELETE 幂等"
+        ],
+        "pitfalls": [
+          "混淆 PUT 与 PATCH 的语义",
+          "以为 POST 幂等而随意重试"
+        ],
+        "related": [
+          "幂等性与重试",
+          "RESTful 设计",
+          "条件请求"
+        ]
+      }
+    },
+    {
+      "id": "net-redirect-002",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": [
+        "网络",
+        "HTTP",
+        "状态码"
+      ],
+      "stem": "HTTP 状态码 301 与 302 的区别是？",
+      "options": [
+        {
+          "k": "A",
+          "t": "301 表示永久重定向，302 表示临时重定向"
+        },
+        {
+          "k": "B",
+          "t": "301 表示临时重定向，302 表示永久重定向"
+        },
+        {
+          "k": "C",
+          "t": "二者都表示服务器内部错误"
+        },
+        {
+          "k": "D",
+          "t": "301 表示请求成功，302 表示资源未找到"
+        }
+      ],
+      "answer": "A",
+      "explanation": {
+        "explain": "301 Moved Permanently 表示资源已永久迁移到新地址，浏览器与搜索引擎会缓存该重定向并更新链接，利于 SEO 权重转移；302 Found 表示临时重定向，客户端后续仍应请求原地址。历史上 301、302 在重定向时对非 GET 方法是否改用 GET 存在实现分歧，为此规范新增了语义更明确的 308（永久、保持方法）与 307（临时、保持方法）。选择时永久搬迁用 301，临时跳转用 302 或 307。3xx 属重定向类，与成功 2xx、客户端错误 4xx、服务端错误 5xx 不同。",
+        "points": [
+          "301 永久重定向，可缓存、利于 SEO",
+          "302 临时重定向",
+          "307、308 会保持请求方法",
+          "3xx 为重定向类"
+        ],
+        "pitfalls": [
+          "永久迁移误用 302 影响 SEO",
+          "忽视 301、302 可能改变请求方法"
+        ],
+        "related": [
+          "307 与 308 重定向",
+          "HSTS 与 301",
+          "状态码分类"
+        ]
+      }
+    },
+    {
+      "id": "net-https-003",
+      "type": "multiple_choice",
+      "difficulty": "medium",
+      "tags": [
+        "网络",
+        "HTTPS",
+        "TLS"
+      ],
+      "stem": "关于 HTTPS 与 TLS，下列说法正确的有哪些？",
+      "options": [
+        {
+          "k": "A",
+          "t": "HTTPS 在 TCP 之上、HTTP 之下引入 TLS 层，提供加密、完整性校验与身份认证"
+        },
+        {
+          "k": "B",
+          "t": "TLS 握手阶段用非对称加密协商出会话密钥，随后用对称加密传输应用数据"
+        },
+        {
+          "k": "C",
+          "t": "服务器通过 CA 签发的数字证书证明其公钥归属，客户端据此验证身份"
+        },
+        {
+          "k": "D",
+          "t": "使用 HTTPS 后就完全无需再防范 XSS 与 CSRF 等应用层攻击"
+        }
+      ],
+      "answer": [
+        "A",
+        "B",
+        "C"
+      ],
+      "explanation": {
+        "explain": "HTTPS 即 HTTP over TLS：TLS 位于传输层 TCP 之上、应用层 HTTP 之下，提供机密性（加密）、完整性（防篡改）与身份认证。握手阶段用非对称加密（如基于证书的密钥交换或 ECDHE）安全协商出对称会话密钥，之后用对称加密高效传输数据，兼顾安全与性能。服务器出示由受信任 CA 签发的证书以证明其公钥归属，客户端校验证书链与域名。但 TLS 只保护传输通道，不能防范 XSS、CSRF、SQL 注入等应用层漏洞，故 D 错误。",
+        "points": [
+          "HTTPS 即 HTTP over TLS，位于 TCP 之上",
+          "非对称协商密钥，再用对称加密传输",
+          "CA 证书验证服务器身份",
+          "TLS 不防应用层攻击（XSS、CSRF）"
+        ],
+        "pitfalls": [
+          "以为上了 HTTPS 就万事大吉",
+          "混淆非对称与对称加密在握手与传输中的分工"
+        ],
+        "related": [
+          "TLS 1.3 握手优化",
+          "证书链与 CA",
+          "HTTP/2 与 HTTP/3"
+        ]
+      }
+    },
+    {
+      "id": "net-status-004",
+      "type": "numeric",
+      "difficulty": "medium",
+      "tags": [
+        "网络",
+        "HTTP",
+        "状态码"
+      ],
+      "stem": "当客户端在单位时间内发送了过多请求、服务器进行限流时，按 HTTP 语义应返回的状态码是多少？请填写三位数字状态码。",
+      "value": 429,
+      "explanation": {
+        "explain": "429 Too Many Requests 表示用户在给定时间内发送了过多请求（触发限流、速率限制），响应通常配合 Retry-After 头告知客户端应等待多久再重试。它属于 4xx 客户端错误类。相关易混：401 未认证、403 已认证但无权限、404 资源不存在、503 服务整体不可用（过载或维护）。区分 429 与 503 的关键在于：429 针对某客户端请求过多的限流，503 针对服务器整体暂时不可用。",
+        "points": [
+          "429 Too Many Requests 表示限流",
+          "常配合 Retry-After 头",
+          "属于 4xx 客户端错误",
+          "区别于 503 服务不可用"
+        ],
+        "pitfalls": [
+          "把限流误用为 503 或 403",
+          "忽略 Retry-After 对重试节奏的指导"
+        ],
+        "related": [
+          "限流算法（令牌桶、漏桶）",
+          "Retry-After 头",
+          "503 服务不可用"
+        ]
+      }
+    },
+    {
+      "id": "net-httpversion-005",
+      "type": "matching",
+      "difficulty": "hard",
+      "tags": [
+        "网络",
+        "HTTP",
+        "协议演进"
+      ],
+      "stem": "将下列 HTTP 协议版本与其代表性特征正确匹配。",
+      "left": [
+        {
+          "id": "v_h1",
+          "t": "HTTP/1.1"
+        },
+        {
+          "id": "v_h2",
+          "t": "HTTP/2"
+        },
+        {
+          "id": "v_h3",
+          "t": "HTTP/3"
+        }
+      ],
+      "right": [
+        {
+          "id": "f_h1",
+          "t": "引入持久连接（keep-alive）与管线化，但仍存在应用层队头阻塞"
+        },
+        {
+          "id": "f_h2",
+          "t": "二进制分帧、多路复用、头部压缩（HPACK），但仍受 TCP 层队头阻塞影响"
+        },
+        {
+          "id": "f_h3",
+          "t": "基于 QUIC（UDP），从传输层消除队头阻塞并加速连接建立"
+        }
+      ],
+      "pairs": [
+        [
+          "v_h1",
+          "f_h1"
+        ],
+        [
+          "v_h2",
+          "f_h2"
+        ],
+        [
+          "v_h3",
+          "f_h3"
+        ]
+      ],
+      "explanation": {
+        "explain": "HTTP/1.1 引入持久连接与管线化，但同一连接上的请求需按序响应，存在应用层队头阻塞，实践中常靠多条连接缓解。HTTP/2 采用二进制分帧与多路复用，可在单连接上并发多流并用 HPACK 压缩头部，显著提升效率，但因其仍跑在 TCP 上，一旦丢包会触发 TCP 层的队头阻塞。HTTP/3 改用基于 UDP 的 QUIC，在传输层实现多路复用与更快的连接建立（0-RTT 或 1-RTT），从而消除 TCP 队头阻塞。三代演进的主线正是持续解决并发与队头阻塞问题。",
+        "points": [
+          "1.1：持久连接、管线化，仍有队头阻塞",
+          "2：二进制分帧、多路复用、HPACK",
+          "2 仍受 TCP 层队头阻塞影响",
+          "3：基于 QUIC（UDP）消除队头阻塞"
+        ],
+        "pitfalls": [
+          "以为 HTTP/2 多路复用已彻底消除队头阻塞",
+          "混淆应用层与 TCP 层的队头阻塞"
+        ],
+        "related": [
+          "QUIC 协议",
+          "多路复用与流",
+          "TLS 1.3 与 0-RTT"
+        ]
+      }
+    },
+    {
+      "id": "build-esm-001",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": [
+        "工程化",
+        "模块化",
+        "ESM"
+      ],
+      "stem": "关于 ES Modules（ESM）与 CommonJS（CJS）的区别，下列描述正确的是？",
+      "options": [
+        {
+          "k": "A",
+          "t": "ESM 的 import、export 是静态的、可在编译期分析依赖，利于 tree-shaking；CJS 的 require 是运行时动态加载"
+        },
+        {
+          "k": "B",
+          "t": "CommonJS 使用 import、export 语法，ESM 使用 require、module.exports"
+        },
+        {
+          "k": "C",
+          "t": "ESM 只能用于浏览器，不能用于 Node.js"
+        },
+        {
+          "k": "D",
+          "t": "CommonJS 支持顶层 await，而 ESM 不支持"
+        }
+      ],
+      "answer": "A",
+      "explanation": {
+        "explain": "ESM 的 import、export 是静态语法，模块依赖在编译期即可确定，因此打包器能做静态分析与 tree-shaking，剔除未用导出；CommonJS 的 require 是运行时函数调用，可动态传参与条件加载，难以静态分析。B 把两种语法说反了；ESM 如今在 Node.js（.mjs 或 package.json 设 type:module）与浏览器均可用，故 C 错误；顶层 await 是 ESM 特性而非 CJS，故 D 错误。ESM 还具有导出绑定为实时只读视图、默认严格模式等特点。",
+        "points": [
+          "ESM import、export 静态可分析，利于 tree-shaking",
+          "CJS require 运行时动态加载",
+          "ESM 在 Node 与浏览器均可用",
+          "顶层 await 是 ESM 特性"
+        ],
+        "pitfalls": [
+          "把 ESM 与 CJS 的语法记反",
+          "以为 ESM 不能在 Node 中运行"
+        ],
+        "related": [
+          "tree-shaking",
+          "import() 动态导入",
+          "package.json 的 exports 与 type"
+        ]
+      }
+    },
+    {
+      "id": "build-semver-002",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": [
+        "工程化",
+        "npm",
+        "语义化版本"
+      ],
+      "stem": "在 package.json 依赖中，版本范围 \"^1.2.3\" 允许自动升级到下列哪一个版本？",
+      "options": [
+        {
+          "k": "A",
+          "t": "2.0.0"
+        },
+        {
+          "k": "B",
+          "t": "1.3.0"
+        },
+        {
+          "k": "C",
+          "t": "1.2.2"
+        },
+        {
+          "k": "D",
+          "t": "0.9.0"
+        }
+      ],
+      "answer": "B",
+      "explanation": {
+        "explain": "语义化版本（SemVer）为 主版本.次版本.修订号：主版本变更表示不兼容改动，次版本表示向后兼容的新功能，修订号表示向后兼容的修复。插入符 ^1.2.3 允许升级到不改变最左非零版本段的最新版本，即大于等于 1.2.3 且小于 2.0.0，因此可升到 1.3.0，但不会到 2.0.0，故 B 正确、A 越界。1.2.2 比基线更低、0.9.0 更低，均不满足。相对地，~1.2.3 一般只允许修订号升级，即大于等于 1.2.3 且小于 1.3.0。",
+        "points": [
+          "SemVer 为主版本.次版本.修订号",
+          "^1.2.3 等于大于等于 1.2.3 且小于 2.0.0",
+          "~1.2.3 等于大于等于 1.2.3 且小于 1.3.0",
+          "主版本升级表示不兼容"
+        ],
+        "pitfalls": [
+          "以为 ^ 会升级主版本",
+          "混淆 ^ 与 ~ 的范围，或忽视 0.x 版本下 ^ 的特殊收窄"
+        ],
+        "related": [
+          "package-lock.json 锁定",
+          "语义化版本规范",
+          "依赖升级策略"
+        ]
+      }
+    },
+    {
+      "id": "build-bundler-003",
+      "type": "multiple_choice",
+      "difficulty": "medium",
+      "tags": [
+        "工程化",
+        "打包",
+        "构建优化"
+      ],
+      "stem": "关于现代前端打包与构建优化，下列说法正确的有哪些？",
+      "options": [
+        {
+          "k": "A",
+          "t": "Tree-shaking 依赖 ESM 的静态结构，用于剔除未被引用的导出代码"
+        },
+        {
+          "k": "B",
+          "t": "代码分割（code splitting）可将代码拆成多个 chunk，配合动态 import() 实现按需加载"
+        },
+        {
+          "k": "C",
+          "t": "source map 用于将压缩、转译后的代码映射回源码以便调试"
+        },
+        {
+          "k": "D",
+          "t": "Webpack 中的 Loader 与 Plugin 是同一概念，二者可以互相替换"
+        }
+      ],
+      "answer": [
+        "A",
+        "B",
+        "C"
+      ],
+      "explanation": {
+        "explain": "Tree-shaking 借助 ESM 静态可分析的特性，在打包时剔除未被使用的导出以减小体积；代码分割把打包产物拆成多个 chunk，结合动态 import() 可实现路由级或组件级的按需加载，缩短首屏时间。source map 建立压缩、转译后代码与源码之间的映射，便于在浏览器中定位与调试原始代码。在 Webpack 中，Loader 用于转换单个模块（如把 .ts、.scss 转成 JS、CSS），Plugin 作用于整个构建生命周期（如生成 HTML、抽取 CSS），二者职责不同、不可互换，故 D 错误。",
+        "points": [
+          "tree-shaking 依赖 ESM 静态结构",
+          "code splitting 配合动态 import 按需加载",
+          "source map 映射回源码便于调试",
+          "Loader 转换模块，Plugin 处理构建流程"
+        ],
+        "pitfalls": [
+          "混淆 Loader 与 Plugin 的职责",
+          "以为 CommonJS 也能被充分 tree-shaking"
+        ],
+        "related": [
+          "动态 import 与懒加载",
+          "Vite、esbuild、Rollup",
+          "按需加载与预加载"
+        ]
+      }
+    },
+    {
+      "id": "build-babel-004",
+      "type": "true_false",
+      "difficulty": "medium",
+      "tags": [
+        "工程化",
+        "Babel",
+        "兼容性"
+      ],
+      "stem": "Babel 默认只做语法转换（如把箭头函数、class 降级为 ES5 等价写法），并不会自动为 Promise、Array.prototype.includes 等新 API 提供实现，这类缺失的运行时能力需要通过 polyfill（如 core-js）来补齐。该说法是否正确？",
+      "answer": true,
+      "explanation": {
+        "explain": "Babel 的核心是语法层转译：把新语法（箭头函数、解构、class、可选链等）降级为目标环境支持的等价语法，但它不会凭空实现新的内置对象或原型方法。像 Promise、Symbol、Array.prototype.includes、Object.assign 这类新 API 属于运行时能力，需要通过 polyfill（通常由 core-js 提供）在旧环境中补齐。现代做法是配合 @babel/preset-env 的 browserslist 目标与 useBuiltIns:usage 按需注入所需 polyfill，避免全量引入。区分“语法转换”与“API 垫片”是理解兼容性方案的关键。",
+        "points": [
+          "Babel 只转语法，不实现新 API",
+          "Promise、includes 等需 polyfill（core-js）",
+          "preset-env 按 browserslist 目标降级",
+          "useBuiltIns:usage 按需注入 polyfill"
+        ],
+        "pitfalls": [
+          "以为 Babel 会自动补齐 API",
+          "polyfill 全量引入导致体积膨胀"
+        ],
+        "related": [
+          "core-js",
+          "@babel/preset-env",
+          "browserslist"
+        ]
+      }
+    },
+    {
+      "id": "build-vite-005",
+      "type": "fill_blank",
+      "difficulty": "hard",
+      "tags": [
+        "工程化",
+        "Vite",
+        "构建工具"
+      ],
+      "mode": "ordered",
+      "stem": "补全构建工具知识：Vite 在开发环境利用浏览器原生 ______ 模块按需提供源码、实现秒级启动与热更新，并用底层的 esbuild 预构建依赖；而在生产环境为获得更优的加载与兼容性，Vite 默认使用 ______ 进行打包。",
+      "blanks": [
+        {
+          "accept": [
+            {
+              "text": "ESM"
+            },
+            {
+              "text": "ES Module"
+            },
+            {
+              "text": "ES Modules"
+            },
+            {
+              "text": "ESModule"
+            }
+          ],
+          "label": "原生模块系统"
+        },
+        {
+          "accept": [
+            {
+              "text": "Rollup"
+            },
+            {
+              "text": "rollup"
+            }
+          ],
+          "label": "生产打包器"
+        }
+      ],
+      "explanation": {
+        "explain": "Vite 开发时不预先打包，而是借助浏览器原生 ES Modules（ESM）按需请求源码，仅编译当前访问的模块，从而实现近乎瞬时的冷启动与快速热更新；同时用以 Go 编写、速度极快的 esbuild 预构建第三方依赖，把 CommonJS 转为 ESM 并合并请求。生产环境则默认用 Rollup 打包，以获得更成熟的代码分割、tree-shaking 与插件生态，产出优化后的静态资源。这种“开发用原生 ESM、生产用 Rollup”的双引擎设计是 Vite 既快又稳的关键。较新的 Vite 也在探索用基于 Rust 的 Rolldown 统一构建。",
+        "points": [
+          "开发期用浏览器原生 ESM 按需编译",
+          "esbuild 预构建依赖，速度极快",
+          "生产默认用 Rollup 打包",
+          "双引擎兼顾开发速度与产物质量"
+        ],
+        "pitfalls": [
+          "以为 Vite 生产环境也用 esbuild 打包",
+          "忽视依赖预构建（CJS 转 ESM）的作用"
+        ],
+        "related": [
+          "esbuild",
+          "Rollup",
+          "HMR 热模块替换"
+        ]
+      }
+    },
+    {
+      "id": "algo-binarysearch-001",
+      "type": "single_choice",
+      "difficulty": "easy",
+      "tags": [
+        "算法",
+        "复杂度",
+        "查找"
+      ],
+      "stem": "对一个长度为 n 的有序数组执行二分查找（binary search），其最坏时间复杂度是？",
+      "options": [
+        {
+          "k": "A",
+          "t": "O(n)"
+        },
+        {
+          "k": "B",
+          "t": "O(log n)"
+        },
+        {
+          "k": "C",
+          "t": "O(n log n)"
+        },
+        {
+          "k": "D",
+          "t": "O(1)"
+        }
+      ],
+      "answer": "B",
+      "explanation": {
+        "explain": "二分查找每次比较后将候选区间折半，最坏情况下需要约 log2(n) 次比较即可定位或排除目标，故最坏时间复杂度为 O(log n)。前提是数组已按序排列且可随机访问，如以数组下标访问。相比之下线性查找为 O(n)。若数据无序，先排序再二分则整体为 O(n log n)，但仅查找这一步仍是 O(log n)。空间上迭代实现为 O(1)，递归实现因调用栈为 O(log n)。",
+        "points": [
+          "二分每次折半，故为 O(log n)",
+          "前提是有序且可随机访问",
+          "线性查找为 O(n)",
+          "迭代二分空间为 O(1)"
+        ],
+        "pitfalls": [
+          "对无序数组直接二分",
+          "把先排序的成本算进查找复杂度"
+        ],
+        "related": [
+          "时间复杂度分析",
+          "排序算法",
+          "跳表与平衡树查找"
+        ]
+      }
+    },
+    {
+      "id": "algo-sort-002",
+      "type": "single_choice",
+      "difficulty": "medium",
+      "tags": [
+        "算法",
+        "排序",
+        "稳定性"
+      ],
+      "stem": "下列排序算法中，在常规实现下通常是“稳定”的（相等元素的相对次序在排序后保持不变）？",
+      "options": [
+        {
+          "k": "A",
+          "t": "快速排序（quick sort）"
+        },
+        {
+          "k": "B",
+          "t": "归并排序（merge sort）"
+        },
+        {
+          "k": "C",
+          "t": "堆排序（heap sort）"
+        },
+        {
+          "k": "D",
+          "t": "选择排序（selection sort）"
+        }
+      ],
+      "answer": "B",
+      "explanation": {
+        "explain": "排序稳定指值相等的元素排序后仍保持原有相对次序。归并排序在合并时对相等元素优先取左侧，天然稳定；而快速排序（依赖分区交换）、堆排序（借助堆结构的跨位置交换）以及常规实现的选择排序，都会打乱相等元素的相对次序，通常是不稳定的。稳定性在多关键字排序（先按次关键字、再按主关键字）时很重要。JavaScript 规范自 ES2019 起要求 Array.prototype.sort 必须稳定。",
+        "points": [
+          "稳定即相等元素相对次序不变",
+          "归并排序稳定",
+          "快排、堆排、选择排序通常不稳定",
+          "ES2019 起 Array.sort 要求稳定"
+        ],
+        "pitfalls": [
+          "以为选择排序稳定",
+          "忽视稳定性对多关键字排序的影响"
+        ],
+        "related": [
+          "Array.prototype.sort 的稳定性",
+          "计数排序与基数排序",
+          "时间与空间复杂度权衡"
+        ]
+      }
+    },
+    {
+      "id": "algo-fib-003",
+      "type": "code_output",
+      "difficulty": "medium",
+      "tags": [
+        "算法",
+        "递归",
+        "斐波那契"
+      ],
+      "stem": "阅读以下 JavaScript 代码，写出 console.log 的输出结果。",
+      "media": [
+        {
+          "kind": "code",
+          "src": "function fib(n) {\n  if (n < 2) return n;\n  return fib(n - 1) + fib(n - 2);\n}\nconsole.log(fib(7));"
+        }
+      ],
+      "expected": "13",
+      "explanation": {
+        "explain": "该递归定义了斐波那契数列：fib(0) 为 0、fib(1) 为 1，其余为前两项之和，从第 0 项起序列为 0,1,1,2,3,5,8,13,21。因此 fib(7) 等于 13。这种朴素递归存在大量重复子问题，时间复杂度为指数级 O(2^n)，可用记忆化或自底向上的动态规划优化到 O(n)。计算时要注意起始项从第 0 项开始，避免下标错位。",
+        "points": [
+          "fib(0) 为 0、fib(1) 为 1，其后为前两项之和",
+          "序列 0,1,1,2,3,5,8,13，故 fib(7) 为 13",
+          "朴素递归 O(2^n) 有重复子问题",
+          "可用记忆化或 DP 优化到 O(n)"
+        ],
+        "pitfalls": [
+          "起始项下标错位导致答案偏移",
+          "忽视朴素递归的指数级开销"
+        ],
+        "related": [
+          "动态规划",
+          "记忆化",
+          "尾递归与调用栈"
+        ]
+      }
+    },
+    {
+      "id": "algo-bscount-004",
+      "type": "numeric",
+      "difficulty": "medium",
+      "tags": [
+        "算法",
+        "复杂度",
+        "二分查找"
+      ],
+      "stem": "在一个长度为 1000 的有序数组上执行二分查找，最坏情况下最多需要比较多少次？提示：结果等于 floor(log2(1000)) + 1，请填写整数次数。",
+      "value": 10,
+      "explanation": {
+        "explain": "二分查找最坏比较次数等于把区间从 n 折半到 1 所需的次数，为 floor(log2(n)) + 1。由于 2 的 9 次方等于 512 小于 1000，且 1000 小于等于 1024 即 2 的 10 次方，即 log2(1000) 约为 9.97，floor(9.97) 加 1 等于 10，故最坏需 10 次比较。直观理解：每比较一次区间至少减半，10 次可覆盖至多 1024 个元素。这也解释了二分查找 O(log n) 的高效性，元素规模翻倍，最坏比较次数仅增加 1。",
+        "points": [
+          "最坏比较次数为 floor(log2(n)) + 1",
+          "2 的 9 次方 512 小于 1000 小于等于 1024",
+          "故结果为 10 次",
+          "规模翻倍，比较次数仅加 1"
+        ],
+        "pitfalls": [
+          "直接用 log2(1000) 约 9.97 而未取整加一",
+          "混淆比较次数与递归深度的细微差别"
+        ],
+        "related": [
+          "对数复杂度",
+          "二分查找的边界处理",
+          "判定树高度"
+        ]
+      }
+    },
+    {
+      "id": "algo-knapsack-005",
+      "type": "true_false",
+      "difficulty": "hard",
+      "tags": [
+        "算法",
+        "动态规划",
+        "贪心"
+      ],
+      "stem": "对于 0-1 背包问题（每件物品只能选或不选、不可分割），采用“每次优先选取单位重量价值最高的物品”的贪心策略，总能得到全局最优解。该说法是否正确？",
+      "answer": false,
+      "explanation": {
+        "explain": "0-1 背包问题不能用贪心（按性价比排序选取）保证全局最优，因为物品不可分割，局部最优的选择可能挤占容量，导致无法容纳组合价值更高的方案，存在明确反例。它属于具有最优子结构且子问题重叠的问题，应使用动态规划：以剩余容量为状态、对每件物品做选或不选的转移求解，时间复杂度约为 O(nW)。相对地，分数背包（物品可分割）才可以用贪心得到最优解。区分物品是否可分割，是选择算法的关键。",
+        "points": [
+          "0-1 背包用贪心不保证最优，有反例",
+          "物品不可分割是关键约束",
+          "应用动态规划，复杂度约 O(nW)",
+          "分数背包才可用贪心"
+        ],
+        "pitfalls": [
+          "把分数背包的贪心结论套用到 0-1 背包",
+          "忽视贪心需满足贪心选择性质与最优子结构"
+        ],
+        "related": [
+          "动态规划",
+          "贪心算法的适用条件",
+          "背包问题的变体"
+        ]
+      }
+    }
+  ]
+}

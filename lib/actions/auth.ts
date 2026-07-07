@@ -1,11 +1,14 @@
 "use server";
 
 // lib/actions/auth.ts
-// Public auth Server Actions (architecture §3.3, §4.2). All are defineAction(schema, noGuard,
-// handler) — no session required. The heavy lifting (argon2id hashing, transactional user +
+// Public auth Server Actions (architecture §3.3, §4.2). The defineAction(schema, noGuard, handler)
+// ones need no session; loginAction/logoutAction/oauthSignInAction are hand-written (they wrap the
+// Auth.js primitives / redirect). The heavy lifting (argon2id hashing, transactional user +
 // subscription + entitlement + verification-token creation, enumeration-safe branching, email
 // delivery) lives in authService (actions never import prisma directly). register /
-// requestPasswordReset return an IDENTICAL response whether or not the email exists (§3.3).
+// requestPasswordReset / resendVerification return an IDENTICAL response whether or not the email
+// exists (§3.3); register / requestPasswordReset additionally carry a `mode` discriminator that
+// reflects ONLY the server email config (isEmailEnabled), never account existence.
 
 import { headers } from "next/headers";
 import { AuthError } from "next-auth";
@@ -15,10 +18,12 @@ import { signIn, signOut } from "@/lib/server/auth";
 import { assertRateLimit, checkRateLimit, clientIpFrom } from "@/lib/server/ratelimit";
 import * as analyticsService from "@/lib/server/services/analyticsService";
 import * as authService from "@/lib/server/services/authService";
+import type { RegisterMode, ResetRequestMode } from "@/lib/server/services/authService";
 import {
   credentialsSchema,
   registerSchema,
   requestResetSchema,
+  resendVerificationSchema,
   resetPasswordSchema,
   verifyEmailSchema,
 } from "@/lib/validation/auth";
@@ -35,7 +40,7 @@ async function authRateId(email?: string): Promise<string> {
 export const registerAction = defineAction(
   registerSchema,
   noGuard,
-  async (input): Promise<{ ok: true }> => {
+  async (input): Promise<{ ok: true; mode: RegisterMode }> => {
     await assertRateLimit("auth:register", await authRateId(input.email), AUTH_LIMIT);
     return authService.register({ email: input.email, password: input.password, name: input.name });
   },
@@ -44,9 +49,25 @@ export const registerAction = defineAction(
 export const requestPasswordResetAction = defineAction(
   requestResetSchema,
   noGuard,
-  async (input): Promise<{ ok: true }> => {
+  async (input): Promise<{ ok: true; mode: ResetRequestMode }> => {
     await assertRateLimit("auth:reset-request", await authRateId(input.email), AUTH_LIMIT);
     return authService.requestPasswordReset({ email: input.email });
+  },
+);
+
+/**
+ * resendVerificationAction — re-send the email-verification link (register success view + login
+ * "邮箱未验证" prompt). Enumeration-safe: rate-limited and ALWAYS returns { ok:true } regardless of
+ * whether the email exists / is already verified / is OAuth-only (authService.resendVerification
+ * only actually sends for an existing, still-unverified credential account, and no-ops entirely when
+ * email delivery is unconfigured). Public.
+ */
+export const resendVerificationAction = defineAction(
+  resendVerificationSchema,
+  noGuard,
+  async (input): Promise<{ ok: true }> => {
+    await assertRateLimit("auth:resend-verify", await authRateId(input.email), AUTH_LIMIT);
+    return authService.resendVerification({ email: input.email });
   },
 );
 

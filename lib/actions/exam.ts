@@ -12,12 +12,13 @@ import { requireUser } from "@/lib/server/guards";
 import * as entitlementService from "@/lib/server/services/entitlementService";
 import * as sessionService from "@/lib/server/services/sessionService";
 import type {
-  ExamState,
+  ExamStateResult,
   StartExamResult,
   SubmitExamResult,
 } from "@/lib/server/services/sessionService";
 import {
   examSessionSchema,
+  examStateSchema,
   saveExamAnswerSchema,
   startExamSchema,
 } from "@/lib/validation/exam";
@@ -53,8 +54,8 @@ export const submitExamAction = defineAction(
 );
 
 export const getExamStateAction = defineAction(
-  examSessionSchema,
+  examStateSchema,
   requireUser,
-  async (input, user): Promise<ExamState> =>
+  async (input, user): Promise<ExamStateResult | null> =>
     sessionService.getExamState({ userId: user.id, sessionId: input.sessionId }),
 );

@@ -2,7 +2,11 @@
 // Tag synchronization inside an import/CRUD transaction (architecture §5.1). Upserts each Tag
 // by slug (name = slug for now) and replaces the question's QuestionTag rows to match exactly.
 // Takes a Prisma transaction client so it composes into the same $transaction as the write.
+//
+// Also hosts the READ path listTags(): the published-question tag facet for the practice/browse
+// filter chips (§7.3), driven off the denormalized tagsFlat mirror rather than the Tag join.
 
+import { prisma } from "@/lib/server/db";
 import type { Prisma } from "@prisma/client";
 
 /**
@@ -44,4 +48,37 @@ export async function syncTags(
       skipDuplicates: true,
     });
   }
+}
+
+/** One tag facet row: the slug, a display name, and its published-question count. */
+export interface TagWithCount {
+  slug: string;
+  name: string;
+  count: number;
+}
+
+/**
+ * listTags — the published-question tag facet for the practice/browse filter chips (§7.3, replacing
+ * the hardcoded pfTagList). Driven by unnest("tagsFlat") over PUBLISHED questions — NOT the
+ * Tag/QuestionTag join — because tagsFlat is the authoritative filter surface (list/practice filter
+ * on it) and is ALWAYS populated on a published row, whereas Tag rows are only written by syncTags
+ * (the seed inserts tagsFlat directly, leaving Tag empty). Each slug's display `name` prefers a
+ * curated Tag.name when one exists, else falls back to the slug. Counts are per published question;
+ * ordered by count desc (ties by name), capped to 30. Empty array when the bank is empty. Read-only
+ * (no tx) — uses the pooled client. COUNT is cast ::int so it crosses the action boundary as a
+ * plain JS number (a raw bigint would not serialize).
+ */
+export async function listTags(): Promise<TagWithCount[]> {
+  return prisma.$queryRaw<TagWithCount[]>`
+    SELECT ft.slug AS slug,
+           COALESCE(t.name, ft.slug) AS name,
+           COUNT(*)::int AS count
+    FROM "Question" q
+    CROSS JOIN LATERAL unnest(q."tagsFlat") AS ft(slug)
+    LEFT JOIN "Tag" t ON t.slug = ft.slug
+    WHERE q.status = 'published' AND ft.slug <> ''
+    GROUP BY ft.slug, t.name
+    ORDER BY count DESC, name ASC
+    LIMIT 30
+  `;
 }

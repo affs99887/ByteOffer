@@ -121,25 +121,31 @@ export async function startPractice(params: {
   };
 }
 
-export interface PracticeQuestionResult {
-  question: PublicQuestion | null;
-  questionMeta: QuestionMeta | null;
+export interface PracticeBatchResult {
+  questions: PublicQuestion[];
   nextCursor: string | null;
 }
 
 /**
- * getPracticeQuestion — the next published question for a practice flow (backs
- * getQuestionForPracticeAction). If a sessionId is given (and owned by the user) its frozen
- * filters are reused; otherwise ad-hoc `filters` apply. `cursor` is the last question id to
- * advance past. The returned question is key-stripped; nextCursor is its id for the next call.
+ * getPracticeQuestions — a BATCH of the next published questions for a practice flow (backs
+ * getQuestionForPracticeAction, replacing the old single-question shape). If a sessionId is given
+ * (and owned by the user) its FROZEN filter snapshot is reused; otherwise ad-hoc `filters` apply.
+ * `cursor` is the last question id to advance past; `take` bounds the page (clamped 1..50). Returns
+ * up to `take` key-STRIPPED questions in id order + a nextCursor.
+ *
+ * Cursor semantics mirror questionService.listPublicForPractice: over-fetch one row past `take`,
+ * drop quarantined (bad-payload) rows from the page, but base nextCursor on the raw page window —
+ * so the cursor always advances past any quarantined rows and paging can never loop.
  */
-export async function getPracticeQuestion(params: {
+export async function getPracticeQuestions(params: {
   userId: string;
   sessionId?: string;
   filters?: PracticeFilters;
   cursor?: string;
-}): Promise<PracticeQuestionResult> {
+  take: number;
+}): Promise<PracticeBatchResult> {
   const { userId, sessionId, cursor } = params;
+  const take = Math.min(Math.max(params.take, 1), 50);
   let filters = params.filters;
 
   if (sessionId) {
@@ -153,13 +159,24 @@ export async function getPracticeQuestion(params: {
     }
   }
 
-  const rec = await pickPublishedRecord(publishedWhere(filters), cursor);
+  const rows = await prisma.question.findMany({
+    where: publishedWhere(filters),
+    orderBy: { id: "asc" },
+    take: take + 1,
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+  });
 
-  return {
-    question: rec ? stripAnswerKey(rec) : null,
-    questionMeta: rec ? metaFromRecord(rec) : null,
-    nextCursor: rec ? rec.id : null,
-  };
+  const hasMore = rows.length > take;
+  const page = hasMore ? rows.slice(0, take) : rows;
+
+  const questions: PublicQuestion[] = [];
+  for (const row of page) {
+    const rec = recordFromRow(row);
+    if (rec) questions.push(stripAnswerKey(rec));
+  }
+
+  const nextCursor = hasMore ? page[page.length - 1].id : null;
+  return { questions, nextCursor };
 }
 
 // ============================================================
@@ -322,68 +339,103 @@ export async function saveExamAnswer(params: {
   return { ok: true };
 }
 
-export interface ExamStateAnswer {
-  questionId: string;
-  userAnswer: UserAnswer;
-}
-
-export interface ExamState {
+export interface ExamStateResult {
   sessionId: string;
   status: string;
-  questionIds: string[];
-  remainingSec: number | null;
-  durationSec: number | null;
-  answers: ExamStateAnswer[];
-  totalScore: number | null;
-  maxScore: number | null;
+  /** The frozen exam questions in their locked order, key-STRIPPED (no key/explanation pre-submit). */
+  questions: PublicQuestion[];
+  /** Server-authoritative seconds left = min(stored remainingSec, durationSec − elapsed), clamped ≥ 0. */
+  remainingSec: number;
+  durationSec: number;
+  /** Saved answers keyed by questionId (latest save per question), to rehydrate the answer sheet. */
+  answers: Record<string, UserAnswer>;
 }
 
 /**
- * getExamState — resumable exam state: the frozen question ids, the saved answers (from the
- * ungraded Attempt rows), and the server-authoritative remainingSec. Ownership-scoped. No
- * grading is included for an active exam (answers only).
+ * getExamState — RESUMABLE exam state so a refresh mid-exam restores the SAME session instead of
+ * starting a fresh one (§8.3). Ownership-scoped. With `sessionId`, that specific owned exam session
+ * is loaded (throws NotFound if it isn't the user's); with NO sessionId, the user's LATEST ACTIVE
+ * exam session is found (returns null when there is none to resume). Returns the frozen questions
+ * (key-STRIPPED, in the locked order), the saved answers (from the ungraded Attempt rows, keyed by
+ * questionId), and the server-authoritative remainingSec. No grading is revealed for an active exam.
+ *
+ * remainingSec is recomputed server-side and kept MONOTONIC: the true deadline is startedAt +
+ * durationSec, so wall-clock remaining = durationSec − elapsed; we return min(stored, wallRemaining)
+ * clamped to ≥ 0 — never more time than the deadline allows, and never above the last stored value.
  */
 export async function getExamState(params: {
   userId: string;
-  sessionId: string;
-}): Promise<ExamState> {
+  sessionId?: string;
+}): Promise<ExamStateResult | null> {
   const { userId, sessionId } = params;
 
+  // With an explicit sessionId, load THAT owned exam session; otherwise resume the user's latest
+  // ACTIVE exam session. orderBy is harmless (single row) in the sessionId case.
+  const where: Prisma.StudySessionWhereInput = sessionId
+    ? { id: sessionId, userId, mode: "exam" }
+    : { userId, mode: "exam", status: "active" };
+
   const session = await prisma.studySession.findFirst({
-    where: { id: sessionId, userId, mode: "exam" },
+    where,
+    orderBy: { startedAt: "desc" },
     select: {
       id: true,
       status: true,
       questionIds: true,
       remainingSec: true,
       durationSec: true,
-      totalScore: true,
-      maxScore: true,
+      startedAt: true,
     },
   });
-  if (!session) throw new NotFoundError();
 
+  if (!session) {
+    if (sessionId) throw new NotFoundError();
+    return null; // no active exam to resume
+  }
+
+  // Rehydrate the frozen questions in their locked order, key-STRIPPED. Missing/quarantined rows are
+  // dropped (a bad payload never crashes resume); the answer sheet keys off questionId regardless.
+  const rows = await prisma.question.findMany({
+    where: { id: { in: session.questionIds }, status: "published" },
+  });
+  const strippedById = new Map<string, PublicQuestion>();
+  for (const row of rows) {
+    const rec = recordFromRow(row);
+    if (rec) strippedById.set(row.id, stripAnswerKey(rec));
+  }
+  const questions: PublicQuestion[] = [];
+  for (const qid of session.questionIds) {
+    const q = strippedById.get(qid);
+    if (q) questions.push(q);
+  }
+
+  // Saved answers (latest per question — asc order means later rows overwrite earlier ones).
   const attempts = await prisma.attempt.findMany({
-    where: { sessionId, userId },
+    where: { sessionId: session.id, userId },
     select: { questionId: true, userAnswer: true },
     orderBy: { createdAt: "asc" },
   });
-
-  // Keep the latest saved answer per question (later rows win).
-  const byQuestion = new Map<string, UserAnswer>();
+  const answers: Record<string, UserAnswer> = {};
   for (const a of attempts) {
-    byQuestion.set(a.questionId, a.userAnswer as unknown as UserAnswer);
+    answers[a.questionId] = a.userAnswer as unknown as UserAnswer;
   }
+
+  // Server-authoritative remaining time: monotonic min of the stored value and wall-clock remaining.
+  const durationSec = session.durationSec ?? DEFAULT_EXAM_DURATION_SEC;
+  const elapsedSec = Math.floor((Date.now() - session.startedAt.getTime()) / 1000);
+  const wallRemaining = Math.max(0, durationSec - elapsedSec);
+  const remainingSec =
+    session.remainingSec === null
+      ? wallRemaining
+      : Math.max(0, Math.min(session.remainingSec, wallRemaining));
 
   return {
     sessionId: session.id,
     status: session.status,
-    questionIds: session.questionIds,
-    remainingSec: session.remainingSec,
-    durationSec: session.durationSec,
-    answers: [...byQuestion.entries()].map(([questionId, userAnswer]) => ({ questionId, userAnswer })),
-    totalScore: session.totalScore,
-    maxScore: session.maxScore,
+    questions,
+    remainingSec,
+    durationSec,
+    answers,
   };
 }
 

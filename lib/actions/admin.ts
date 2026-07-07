@@ -13,13 +13,15 @@ import * as questionService from "@/lib/server/services/questionService";
 import * as importService from "@/lib/server/services/importService";
 import * as adminService from "@/lib/server/services/adminService";
 import type { ListResult } from "@/lib/server/services/questionService";
-import type { ListUsersResult } from "@/lib/server/services/adminService";
+import type { AdminBankDetail, ListUsersResult } from "@/lib/server/services/adminService";
 import type { ImportReport } from "@/lib/qbank/validate";
 import type { Role } from "@prisma/client";
 import {
   bulkPublishSchema,
   confirmImportSchema,
+  createBankSchema,
   createQuestionSchema,
+  deleteBankSchema,
   deleteQuestionSchema,
   getQuestionRecordSchema,
   listReviewQueueSchema,
@@ -27,6 +29,7 @@ import {
   prepareImportSchema,
   setQuestionStatusSchema,
   setUserRoleSchema,
+  updateBankSchema,
   updateQuestionSchema,
 } from "@/lib/validation/admin";
 
@@ -110,13 +113,46 @@ export const bulkPublishAction = defineAction(
   async (input): Promise<{ published: number }> => questionService.bulkPublish(input.ids),
 );
 
+// ---- Bank management ----
+
+export const createBankAction = defineAction(
+  createBankSchema,
+  requireAdmin,
+  async (input): Promise<AdminBankDetail> =>
+    adminService.createBank({
+      title: input.title,
+      slug: input.slug,
+      description: input.description,
+      isPremium: input.isPremium,
+      sortOrder: input.sortOrder,
+    }),
+);
+
+export const updateBankAction = defineAction(
+  updateBankSchema,
+  requireAdmin,
+  async (input): Promise<AdminBankDetail> =>
+    adminService.updateBank(input.id, {
+      title: input.title,
+      description: input.description,
+      sortOrder: input.sortOrder,
+      isPremium: input.isPremium,
+    }),
+);
+
+export const deleteBankAction = defineAction(
+  deleteBankSchema,
+  requireAdmin,
+  async (input): Promise<{ ok: true }> => adminService.deleteBank(input.id),
+);
+
 // ---- Users (Phase 4) ----
 
 export const listUsersAction = defineAction(
   listUsersSchema,
   requireAdmin,
   async (input): Promise<ListUsersResult> =>
-    adminService.listUsers({ cursor: input.cursor, take: input.take }),
+    adminService.listUsers({ cursor: input.cursor, take: input.take, search: input.search }),
 );
 
 export const setUserRoleAction = defineAction(

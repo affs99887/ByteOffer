@@ -45,6 +45,11 @@ export function ReviewQueue({ items }: { items: QuestionCard[] }) {
         setError(res.error.message ?? "发布失败");
         return;
       }
+      // Clear selection before the refresh: the just-published ids leave the in_review queue, so a
+      // stale `selected` would make the "全选（selected.size/items.length）" counter read wrong
+      // (e.g. 5/3) after a partial publish. The useState initializer only runs on mount, so we must
+      // reset explicitly rather than rely on the shrinking `items` prop.
+      setSelected(new Set());
       setOkMsg(`已发布 ${res.data.published} 题`);
       router.refresh();
     });

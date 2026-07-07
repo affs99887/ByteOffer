@@ -25,15 +25,18 @@ export const startPracticeSchema = z.object({
 export type StartPracticeInput = z.infer<typeof startPracticeSchema>;
 
 /**
- * getQuestionForPracticeAction input. Either an explicit `sessionId` (whose frozen filters are
- * reused) or ad-hoc `filters`, plus a `cursor` (last question id) to advance past. `index` is an
- * optional ordinal hint for deterministic paging on the client.
+ * getQuestionForPracticeAction input — a BATCH read (§5.4). Either an explicit `sessionId` (whose
+ * frozen filters are reused, ownership-scoped) or ad-hoc `filters`, plus a `cursor` (the last
+ * question id to advance past) and `take` (page size, 1..50, default 10). The action returns up to
+ * `take` key-STRIPPED questions + a nextCursor; the client appends the page and pages forward by
+ * cursor. Clean break from the old single-question shape (no back-compat) — the only consumer is
+ * app/app/page.tsx + the app-context rewrite.
  */
 export const getPracticeQuestionSchema = z.object({
   sessionId: z.string().min(1).optional(),
   filters: practiceFiltersSchema.optional(),
   cursor: z.string().min(1).optional(),
-  index: z.number().int().nonnegative().optional(),
+  take: z.number().int().min(1).max(50).default(10),
 });
 export type GetPracticeQuestionInput = z.infer<typeof getPracticeQuestionSchema>;
 
@@ -56,3 +59,15 @@ export const examSessionSchema = z.object({
   sessionId: z.string().min(1),
 });
 export type ExamSessionInput = z.infer<typeof examSessionSchema>;
+
+/**
+ * getExamStateAction input — RESUME the user's exam (§8.3). With `sessionId`, that specific owned
+ * exam session is rehydrated; with NO sessionId (the whole-object `.default({})`), the service finds
+ * the user's LATEST ACTIVE exam session (returns null when there is none). The default lets a bare
+ * getExamState() call parse to `{}` while `getExamState({ sessionId })` keeps working for a client
+ * that persisted the id across a refresh.
+ */
+export const examStateSchema = z
+  .object({ sessionId: z.string().min(1).optional() })
+  .default({});
+export type ExamStateInput = z.infer<typeof examStateSchema>;

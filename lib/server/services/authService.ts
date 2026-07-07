@@ -1,17 +1,41 @@
 // lib/server/services/authService.ts
 // Registration + password-reset domain logic (architecture §3.3). One of the ONLY layers
-// touching Prisma. ACCOUNT-ENUMERATION SAFE: register / requestPasswordReset perform the SAME
-// observable work and return the SAME shape whether or not the email already exists (§3.3,
-// §10 abuse list). Passwords are argon2id-hashed. Verification / reset links are emailed via
-// sendEmail(), which no-ops+logs when Resend is unconfigured (never crashes build/dev).
+// touching Prisma. ACCOUNT-ENUMERATION SAFE: register / requestPasswordReset / resendVerification
+// return the SAME shape whether or not the email already exists (§3.3, §10 abuse list). Passwords
+// are argon2id-hashed. Verification / reset links are emailed via sendEmail().
+//
+// DUAL-MODE by email posture (isEmailEnabled(), see email.ts): with Resend configured we enforce
+// strict email verification (register issues a link + emailVerified stays null); WITHOUT it we
+// cannot deliver any link, so registration is verification-FREE (accounts are born emailVerified,
+// immediately usable) and password reset reports that self-serve recovery is unavailable. The
+// returned `mode` discriminator reflects ONLY this SERVER config — never account existence — so it
+// stays enumeration-safe. This closes the pre-launch dead-end where an unconfigured deployment
+// created emailVerified=null users that authorize() then permanently refused (EMAIL_NOT_VERIFIED).
 
 import { randomBytes, createHash } from "node:crypto";
 import { hash } from "@node-rs/argon2";
 import { prisma } from "@/lib/server/db";
 import { env } from "@/lib/server/env";
 import { ValidationError } from "@/lib/server/errors";
-import { sendEmail } from "@/lib/server/email";
+import { sendEmail, isEmailEnabled } from "@/lib/server/email";
 import { logger } from "@/lib/server/logger";
+
+/**
+ * Registration outcome discriminator. ENUMERATION-SAFE: a pure function of isEmailEnabled(), NEVER
+ * of whether the account already existed — every caller under the same server config gets the same
+ * value. "verify" = a verification email was issued; the account is unverified and must click the
+ * link before it can log in. "active" = no-email deployment; the account is born emailVerified and
+ * is immediately usable at /login.
+ */
+export type RegisterMode = "verify" | "active";
+
+/**
+ * Password-reset request outcome discriminator. Same enumeration-safety property (reflects SERVER
+ * email config, not account existence). "sent" = email is configured; if the address maps to a
+ * credential account a reset link was sent (response identical either way). "disabled" = no email
+ * service, so self-serve reset is impossible and the form must tell the user to contact the admin.
+ */
+export type ResetRequestMode = "sent" | "disabled";
 
 /** Thrown when a reset token is missing/expired/malformed — mapped to a generic VALIDATION error. */
 export class ResetTokenError extends ValidationError {
@@ -46,36 +70,46 @@ function baseUrl(): string {
 }
 
 /**
- * register — create a new user (enumeration-safe). When the email is free: create User{role:user,
- * emailVerified:null} + Subscription{free} + Entitlement{free,quota:30} + a verification token, in
- * one transaction, then email the verification link. When the email is taken: do NOT reveal it —
- * send a "password reset / already registered" style email to the existing address and return the
- * SAME { ok:true } shape. Either branch returns identically.
+ * register — create a new user (enumeration-safe, dual-mode). The whole verify-vs-active policy
+ * hinges on ONE server-config predicate (isEmailEnabled()), evaluated once so the response is a
+ * pure function of config. Free email: create User + Subscription{free} + Entitlement{free,quota:30}
+ * in one transaction; when email is enabled also mint a verification token (emailVerified:null) and
+ * send the link, when it is disabled the account is born emailVerified:now (immediately usable) and
+ * no token is issued. Taken email: do NOT reveal it — only nudge the real owner (when email works)
+ * and return the SAME { ok, mode } shape. Both branches (and both configs) return identically for a
+ * given server config → no enumeration.
  */
 export async function register(input: {
   email: string;
   password: string;
   name?: string;
-}): Promise<{ ok: true }> {
+}): Promise<{ ok: true; mode: RegisterMode }> {
   const { email, password, name } = input;
+  const emailEnabled = isEmailEnabled();
+  const mode: RegisterMode = emailEnabled ? "verify" : "active";
 
   const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
 
   if (existing) {
-    // Do not create a second account and do not signal existence. Optionally nudge the user that
-    // an account already exists (still enumeration-safe: the RESPONSE is identical; only the email
-    // recipient — who owns the address — learns anything).
-    await sendEmail({
-      to: email,
-      subject: "ByteOffer 账号提示",
-      html: `<p>你或他人尝试用该邮箱注册 ByteOffer，但该邮箱已注册。若是你本人，请直接登录；若忘记密码，可在登录页选择"忘记密码"。</p>`,
-      text: "该邮箱已注册 ByteOffer。若是你本人，请直接登录或使用忘记密码。",
-    });
-    return { ok: true };
+    // Do not create a second account and do not signal existence: the RESPONSE ({ ok, mode }) is
+    // identical to the fresh-account path below. Only when email is deliverable do we nudge the real
+    // owner (who alone learns anything — the caller does not); in no-email mode we send nothing.
+    if (emailEnabled) {
+      await sendEmail({
+        to: email,
+        subject: "ByteOffer 账号提示",
+        html: `<p>你或他人尝试用该邮箱注册 ByteOffer，但该邮箱已注册。若是你本人，请直接登录；若忘记密码，可在登录页选择"忘记密码"。</p>`,
+        text: "该邮箱已注册 ByteOffer。若是你本人，请直接登录或使用忘记密码。",
+      });
+    }
+    return { ok: true, mode };
   }
 
   const passwordHash = await hash(password);
-  const { raw, hashed } = makeToken();
+  // A verification token is only meaningful when we can actually email it. In no-email mode the
+  // account is born verified so it is usable immediately — otherwise a deployment without Resend
+  // would strand every new registrant behind EMAIL_NOT_VERIFIED forever.
+  const token = emailEnabled ? makeToken() : null;
   const expires = new Date(Date.now() + VERIFY_TTL_MS);
 
   await prisma.$transaction(async (tx) => {
@@ -84,7 +118,7 @@ export async function register(input: {
         email,
         name: name ?? null,
         role: "user",
-        emailVerified: null,
+        emailVerified: emailEnabled ? null : new Date(),
         passwordHash,
         subscription: { create: { tier: "free", status: "active" } },
         entitlement: {
@@ -94,33 +128,87 @@ export async function register(input: {
       select: { id: true },
     });
 
-    await tx.verificationToken.create({
-      data: { identifier: email, token: hashed, expires },
-    });
+    if (token) {
+      await tx.verificationToken.create({
+        data: { identifier: email, token: token.hashed, expires },
+      });
+    }
 
     await tx.analyticsEvent
-      .create({ data: { userId: user.id, name: "auth.registered", props: { email } } })
+      .create({ data: { userId: user.id, name: "auth.registered", props: { email, mode } } })
       .catch(() => undefined);
   });
 
-  const link = `${baseUrl()}/verify?token=${raw}`;
-  await sendEmail({
-    to: email,
-    subject: "验证你的 ByteOffer 邮箱",
-    html: `<p>欢迎加入 ByteOffer！请点击以下链接验证邮箱（24 小时内有效）：</p><p><a href="${link}">${link}</a></p>`,
-    text: `验证你的 ByteOffer 邮箱（24 小时内有效）：${link}`,
+  if (token) {
+    const link = `${baseUrl()}/verify?token=${token.raw}`;
+    await sendEmail({
+      to: email,
+      subject: "验证你的 ByteOffer 邮箱",
+      html: `<p>欢迎加入 ByteOffer！请点击以下链接验证邮箱（24 小时内有效）：</p><p><a href="${link}">${link}</a></p>`,
+      text: `验证你的 ByteOffer 邮箱（24 小时内有效）：${link}`,
+    });
+    logger.info("auth_verification_issued", { email });
+  } else {
+    logger.info("auth_registered_active", { email });
+  }
+
+  return { ok: true, mode };
+}
+
+/**
+ * resendVerification — re-issue a verification link for an EXISTING, still-unverified credential
+ * account. ENUMERATION-SAFE: returns { ok:true } identically whether the email is unknown, already
+ * verified, OAuth-only, or genuinely pending — the observable response never varies. No-ops entirely
+ * when email delivery is not configured (there is nothing to resend, and in that posture no
+ * unverified accounts exist). Stale verify tokens for the address are cleared so only the newest
+ * link is valid (reset tokens use a `reset:` prefix, so they are never touched here).
+ */
+export async function resendVerification(input: { email: string }): Promise<{ ok: true }> {
+  const { email } = input;
+  if (!isEmailEnabled()) return { ok: true };
+
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: { passwordHash: true, emailVerified: true },
   });
-  logger.info("auth_verification_issued", { email });
+
+  if (user?.passwordHash && !user.emailVerified) {
+    const { raw, hashed } = makeToken();
+    const expires = new Date(Date.now() + VERIFY_TTL_MS);
+    await prisma.$transaction(async (tx) => {
+      await tx.verificationToken.deleteMany({ where: { identifier: email } }).catch(() => undefined);
+      await tx.verificationToken.create({ data: { identifier: email, token: hashed, expires } });
+    });
+
+    const link = `${baseUrl()}/verify?token=${raw}`;
+    await sendEmail({
+      to: email,
+      subject: "验证你的 ByteOffer 邮箱",
+      html: `<p>请点击以下链接验证邮箱（24 小时内有效）：</p><p><a href="${link}">${link}</a></p>`,
+      text: `验证你的 ByteOffer 邮箱（24 小时内有效）：${link}`,
+    });
+    logger.info("auth_verification_resent", { email });
+  }
 
   return { ok: true };
 }
 
 /**
- * requestPasswordReset — CONSTANT response (§3.3). If the email maps to a credential account,
- * mint a reset token + email the link; otherwise do nothing. Either way return { ok:true }.
+ * requestPasswordReset — CONSTANT response (§3.3), dual-mode. When email is unconfigured there is no
+ * way to deliver a reset link, so we return mode:"disabled" — this reveals SERVER config (that
+ * self-serve recovery is off), NOT account existence, so it is still enumeration-safe; the form then
+ * tells the user to contact the admin instead of falsely claiming an email was sent. When email is
+ * configured we behave as before: if the email maps to a credential account, mint a reset token +
+ * email the link; otherwise do nothing — either way return { ok:true, mode:"sent" }.
  */
-export async function requestPasswordReset(input: { email: string }): Promise<{ ok: true }> {
+export async function requestPasswordReset(
+  input: { email: string },
+): Promise<{ ok: true; mode: ResetRequestMode }> {
   const { email } = input;
+
+  if (!isEmailEnabled()) {
+    return { ok: true, mode: "disabled" };
+  }
 
   const user = await prisma.user.findUnique({
     where: { email },
@@ -146,7 +234,7 @@ export async function requestPasswordReset(input: { email: string }): Promise<{ 
     logger.info("auth_reset_issued", { email });
   }
 
-  return { ok: true };
+  return { ok: true, mode: "sent" };
 }
 
 /**

@@ -2,8 +2,10 @@
 
 // components/auth/reset-form.tsx (3b-2)
 // Two modes in one component:
-//   - no token  → the REQUEST form (requestPasswordResetAction). Enumeration-safe: on ok we always
-//     show the same "重置邮件已发送" copy regardless of whether the email exists.
+//   - no token  → the REQUEST form (requestPasswordResetAction). Enumeration-safe: the terminal copy
+//     depends only on the returned `mode` (server email config), never on whether the email exists —
+//     "sent" shows the usual "如果该邮箱已注册…" line; "disabled" (no email service) tells the user
+//     self-serve recovery is unavailable and to contact the admin (reveals config, not existence).
 //   - token set → the NEW-PASSWORD form (resetPasswordAction). On ok → success + link to /login.
 // The token comes from the ?token= query, resolved server-side and passed as a prop.
 
@@ -28,26 +30,33 @@ export function ResetForm({ token }: { token?: string }) {
 
 function RequestForm() {
   const [pending, startTransition] = useTransition();
-  const [done, setDone] = useState(false);
+  const [outcome, setOutcome] = useState<null | "sent" | "disabled">(null);
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
     const email = String(form.get("email") ?? "");
     startTransition(async () => {
-      // Enumeration-safe: always confirm regardless of the result shape.
-      await requestPasswordResetAction({ email });
-      setDone(true);
+      // Enumeration-safe: the terminal state depends only on `mode` (server email config), never on
+      // whether the email exists. Any non-ok envelope (e.g. rate limit) falls back to generic "sent".
+      const res = await requestPasswordResetAction({ email });
+      setOutcome(res.ok ? res.data.mode : "sent");
     });
   }
 
-  if (done) {
+  if (outcome) {
     return (
       <div style={cardStyle}>
         <BrandHeader subtitle="// 找回密码" />
-        <Banner kind="success">
-          如果该邮箱已注册，我们已向其发送重置链接（1 小时内有效）。请查收邮件。
-        </Banner>
+        {outcome === "disabled" ? (
+          <Banner kind="info">
+            邮件服务未配置，暂无法自助找回密码，请联系管理员协助重置。
+          </Banner>
+        ) : (
+          <Banner kind="success">
+            如果该邮箱已注册，我们已向其发送重置链接（1 小时内有效）。请查收邮件（含垃圾箱）。
+          </Banner>
+        )}
         <div style={{ textAlign: "center", fontSize: "13px", color: "var(--ink3)", marginTop: "8px" }}>
           <Link href="/login" style={linkStyle}>返回登录</Link>
         </div>

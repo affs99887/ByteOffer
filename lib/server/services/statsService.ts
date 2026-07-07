@@ -77,6 +77,13 @@ export interface DifficultyMastery {
   accuracyPct: number;
 }
 
+export interface TypeMastery {
+  /** ASCII QuestionType enum (e.g. "single_choice"); the client maps it via TYPE_LABEL. */
+  type: string;
+  count: number;
+  accuracyPct: number;
+}
+
 export interface StatsReport {
   /** Per-day objective accuracy over the last `rangeDays` (ascending by day). */
   accuracyTrend: AccuracyTrendPoint[];
@@ -96,6 +103,8 @@ export interface StatsReport {
   todayCount: number;
   /** Objective accuracy by difficulty (from Attempt joined to Question). */
   byDifficulty?: DifficultyMastery[];
+  /** Objective accuracy by question TYPE (ASCII enum), SAME 铁律 denominator as byDifficulty. */
+  typeMastery: TypeMastery[];
   /** Objective mastery by category/tag, capped to the top N by attempt count. */
   categoryMastery: CategoryMastery[];
   /** The weakest categories (lowest accuracy, min sample size) — for the "focus here" nudge. */
@@ -167,8 +176,8 @@ export async function report(userId: string, rangeDays = 30): Promise<StatsRepor
 
   const streak = await computeStreak(userId, today);
 
-  // --- Attempt-joined breakdowns (difficulty + category) ---
-  const { byDifficulty, categoryMastery, weakestCategories } =
+  // --- Attempt-joined breakdowns (difficulty + type + category) ---
+  const { byDifficulty, typeMastery, categoryMastery, weakestCategories } =
     await attemptBreakdowns(userId);
 
   return {
@@ -181,6 +190,7 @@ export async function report(userId: string, rangeDays = 30): Promise<StatsRepor
     streak,
     todayCount,
     byDifficulty,
+    typeMastery,
     categoryMastery,
     weakestCategories,
   };
@@ -234,6 +244,7 @@ interface ObjectiveAttemptRow {
   score: number | null;
   gradingClass: GradingClass;
   question: {
+    type: string;
     difficulty: string;
     categoryId: string | null;
     tagsFlat: string[];
@@ -243,6 +254,7 @@ interface ObjectiveAttemptRow {
 
 interface Breakdowns {
   byDifficulty: DifficultyMastery[];
+  typeMastery: TypeMastery[];
   categoryMastery: CategoryMastery[];
   weakestCategories: string[];
 }
@@ -254,15 +266,21 @@ const breakdownCache = new Map<string, { at: number; value: Breakdowns }>();
  * attemptBreakdowns — difficulty + category mastery from the authoritative Attempt table joined to
  * Question. Reads ONLY objective attempts (score != null && gradingClass ∈ auto_*) — the same
  * filter as the objectiveAttempts counter — so subjective/ungraded attempts never affect accuracy
- * (§7.2 铁律). Grouped by difficulty and by category (Category.name when categoryId is set, else the
- * first tag slug). Categories are capped to the top N by attempt count; weakest = lowest accuracy
- * among categories with a minimum sample. Degrades to empty on no data / any read failure.
+ * (§7.2 铁律). Grouped by difficulty, by question TYPE, and by category (Category.name when
+ * categoryId is set, else the first tag slug). Categories are capped to the top N by attempt count;
+ * weakest = lowest accuracy among categories with a minimum sample. Degrades to empty on no data /
+ * any read failure.
  */
 async function attemptBreakdowns(userId: string): Promise<Breakdowns> {
   const cached = breakdownCache.get(userId);
   if (cached && Date.now() - cached.at < CATEGORY_MASTERY_CACHE_MS) return cached.value;
 
-  const EMPTY: Breakdowns = { byDifficulty: [], categoryMastery: [], weakestCategories: [] };
+  const EMPTY: Breakdowns = {
+    byDifficulty: [],
+    typeMastery: [],
+    categoryMastery: [],
+    weakestCategories: [],
+  };
 
   let rows: ObjectiveAttemptRow[];
   try {
@@ -277,6 +295,7 @@ async function attemptBreakdowns(userId: string): Promise<Breakdowns> {
         gradingClass: true,
         question: {
           select: {
+            type: true,
             difficulty: true,
             categoryId: true,
             tagsFlat: true,
@@ -300,6 +319,7 @@ async function attemptBreakdowns(userId: string): Promise<Breakdowns> {
   // A running (correct, count) accumulator keyed by bucket label.
   type Acc = { correct: number; count: number };
   const diffAcc = new Map<string, Acc>();
+  const typeAcc = new Map<string, Acc>();
   const catAcc = new Map<string, Acc>();
 
   const bump = (m: Map<string, Acc>, key: string, isCorrect: boolean) => {
@@ -314,6 +334,7 @@ async function attemptBreakdowns(userId: string): Promise<Breakdowns> {
     // matches the AttemptStatus mapping without needing the status column.
     const isCorrect = (row.score ?? 0) >= 1;
     bump(diffAcc, row.question.difficulty, isCorrect);
+    bump(typeAcc, row.question.type, isCorrect);
 
     const catLabel =
       row.question.category?.name ??
@@ -326,6 +347,11 @@ async function attemptBreakdowns(userId: string): Promise<Breakdowns> {
   const byDifficulty: DifficultyMastery[] = [...diffAcc.entries()]
     .map(([difficulty, a]) => ({ difficulty, count: a.count, accuracyPct: pct(a.correct, a.count) }))
     .sort((x, y) => DIFF_ORDER.indexOf(x.difficulty) - DIFF_ORDER.indexOf(y.difficulty));
+
+  // Type breakdown: most-practiced type first (ties by ASCII enum name) — same objective 铁律.
+  const typeMastery: TypeMastery[] = [...typeAcc.entries()]
+    .map(([type, a]) => ({ type, count: a.count, accuracyPct: pct(a.correct, a.count) }))
+    .sort((x, y) => y.count - x.count || x.type.localeCompare(y.type));
 
   const categoryMastery: CategoryMastery[] = [...catAcc.entries()]
     .map(([category, a]) => ({ category, count: a.count, accuracyPct: pct(a.correct, a.count) }))
@@ -341,7 +367,7 @@ async function attemptBreakdowns(userId: string): Promise<Breakdowns> {
   const pool = ranked.length > 0 ? ranked : [...categoryMastery].sort((x, y) => x.accuracyPct - y.accuracyPct);
   const weakestCategories = pool.slice(0, 3).map((c) => c.category);
 
-  const value: Breakdowns = { byDifficulty, categoryMastery, weakestCategories };
+  const value: Breakdowns = { byDifficulty, typeMastery, categoryMastery, weakestCategories };
   breakdownCache.set(userId, { at: Date.now(), value });
   return value;
 }

@@ -10,9 +10,11 @@
 // keep the boundary clean).
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { deleteQuestionAction, getQuestionRecordAction, setQuestionStatusAction } from "@/lib/actions/admin";
 import type { QuestionCard } from "@/lib/server/services/questionService";
+import type { AdminBank } from "@/lib/server/services/adminService";
 import {
   Banner,
   DiffChip,
@@ -30,7 +32,11 @@ import { QuestionEditor } from "./question-editor";
 
 export interface QuestionsManagerProps {
   items: QuestionCard[];
-  nextCursor: string | null;
+  /** Banks for the create-editor's bankId <select> (replaces the old free-text cuid input). */
+  banks: AdminBank[];
+  /** Cursor-pagination links computed on the server (preserve current filters). */
+  nextHref: string | null;
+  firstHref: string | null;
 }
 
 type EditorState =
@@ -38,7 +44,7 @@ type EditorState =
   | { kind: "create" }
   | { kind: "edit"; id: string; record: unknown };
 
-export function QuestionsManager({ items, nextCursor }: QuestionsManagerProps) {
+export function QuestionsManager({ items, banks, nextHref, firstHref }: QuestionsManagerProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -92,7 +98,7 @@ export function QuestionsManager({ items, nextCursor }: QuestionsManagerProps) {
     return (
       <div>
         <EditorHeader title="新建题目" onBack={() => setEditor({ kind: "closed" })} />
-        <QuestionEditor mode="create" onDone={() => setEditor({ kind: "closed" })} onCancel={() => setEditor({ kind: "closed" })} />
+        <QuestionEditor mode="create" banks={banks} onDone={() => setEditor({ kind: "closed" })} onCancel={() => setEditor({ kind: "closed" })} />
       </div>
     );
   }
@@ -181,9 +187,23 @@ export function QuestionsManager({ items, nextCursor }: QuestionsManagerProps) {
         )}
       </Table>
 
-      {nextCursor && (
-        <div style={{ fontSize: "12px", color: "var(--ink3)" }}>
-          仅显示前 {items.length} 条。更多结果可用筛选缩小范围（游标分页 v1 略）。
+      {(firstHref || nextHref) && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", flexWrap: "wrap" }}>
+          <div style={{ fontSize: "12px", color: "var(--ink3)" }}>
+            本页 {items.length} 条{nextHref ? "，还有更多" : ""}
+          </div>
+          <div style={{ display: "inline-flex", gap: "8px" }}>
+            {firstHref && (
+              <Link href={firstHref} style={{ ...ghostBtnStyle, padding: "7px 13px", fontSize: "12px", textDecoration: "none" }}>
+                ← 回到第一页
+              </Link>
+            )}
+            {nextHref && (
+              <Link href={nextHref} style={{ ...ghostBtnStyle, padding: "7px 13px", fontSize: "12px", textDecoration: "none" }}>
+                下一页 →
+              </Link>
+            )}
+          </div>
         </div>
       )}
     </div>

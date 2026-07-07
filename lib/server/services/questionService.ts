@@ -147,6 +147,41 @@ export async function listPublicForPractice(params: ListParams): Promise<ListPub
   return { items, nextCursor };
 }
 
+/**
+ * countPublished — the real number of PUBLISHED questions: the authoritative bank total for the
+ * home/qbank KPIs (replacing the hardcoded 8642 / state.bank.length). Non-admin visibility rule:
+ * published-only. A throw here means no DB; the RSC caller wraps this in try/catch and degrades to 0.
+ */
+export async function countPublished(): Promise<number> {
+  return prisma.question.count({ where: { status: "published" } });
+}
+
+/** One category row: the first-tag label (tagsFlat[0] taxonomy) + its published-question count. */
+export interface CategoryCount {
+  name: string;
+  count: number;
+}
+
+/**
+ * categoryOverview — published-question counts grouped by CATEGORY = the FIRST tag of each question
+ * (tagsFlat[0] convention, the SAME taxonomy statsService.categoryMastery keys on). Postgres arrays
+ * are 1-indexed, so tagsFlat[1] is the first element; rows with an empty tagsFlat are skipped.
+ * Ordered by count desc (ties by name), capped to 12. Empty array when the bank is empty. Raw SQL
+ * over "Question" (the mirror table) — the array subscript + group has no Prisma groupBy equivalent.
+ * COUNT is cast ::int so it crosses the RSC/action boundary as a plain number (a bigint would not
+ * serialize).
+ */
+export async function categoryOverview(): Promise<CategoryCount[]> {
+  return prisma.$queryRaw<CategoryCount[]>`
+    SELECT "tagsFlat"[1] AS name, COUNT(*)::int AS count
+    FROM "Question"
+    WHERE status = 'published' AND array_length("tagsFlat", 1) >= 1
+    GROUP BY "tagsFlat"[1]
+    ORDER BY count DESC, name ASC
+    LIMIT 12
+  `;
+}
+
 /** getPublishedRow — full row incl payload. Throws NotFoundError if not published (§5.5). */
 export async function getPublishedRow(id: string): Promise<Question> {
   const row = await prisma.question.findFirst({ where: { id, status: "published" } });

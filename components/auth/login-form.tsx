@@ -3,8 +3,10 @@
 // components/auth/login-form.tsx (3b-2)
 // Credential login form. Calls loginAction (Auth.js v5 signIn with redirect:false); on ok the
 // client router.push("/app") drives navigation. Wrong email/password → 邮箱或密码错误; an unverified
-// credential account (EMAIL_NOT_VERIFIED) → a distinct prompt. GitHub/Google buttons are rendered
-// only when the provider is configured (props from the server page) and post to oauthSignInAction.
+// credential account (EMAIL_NOT_VERIFIED — only ever thrown when email delivery is configured) → a
+// "邮箱未验证" prompt WITH an inline 重新发送 button so the flow is never a dead end. GitHub/Google
+// buttons are rendered only when the provider is configured (props from the server page) and post to
+// oauthSignInAction.
 
 import { useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
@@ -20,18 +22,21 @@ import {
   linkStyle,
   oauthBtnStyle,
   primaryBtnStyle,
+  ResendVerifyButton,
 } from "./ui";
 
 export function LoginForm({ github, google }: { github: boolean; google: boolean }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [needsVerify, setNeedsVerify] = useState(false);
+  // Holds the just-submitted email when login is blocked on an unverified account, so the inline
+  // 重新发送 button can target it; null means "not blocked on verification".
+  const [needsVerify, setNeedsVerify] = useState<string | null>(null);
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
-    setNeedsVerify(false);
+    setNeedsVerify(null);
     const form = new FormData(e.currentTarget);
     const email = String(form.get("email") ?? "");
     const password = String(form.get("password") ?? "");
@@ -44,7 +49,7 @@ export function LoginForm({ github, google }: { github: boolean; google: boolean
         return;
       }
       if (res.error.code === "EMAIL_NOT_VERIFIED") {
-        setNeedsVerify(true);
+        setNeedsVerify(email);
         return;
       }
       setError("邮箱或密码错误");
@@ -59,9 +64,12 @@ export function LoginForm({ github, google }: { github: boolean; google: boolean
 
       {error && <Banner kind="error">{error}</Banner>}
       {needsVerify && (
-        <Banner kind="info">
-          该邮箱尚未验证。请查收注册时发送的验证邮件并完成验证后再登录。
-        </Banner>
+        <div style={{ marginBottom: "16px" }}>
+          <Banner kind="info">
+            邮箱未验证。请查收注册时发送的验证邮件（含垃圾箱），完成验证后再登录。
+          </Banner>
+          <ResendVerifyButton email={needsVerify} />
+        </div>
       )}
 
       <form onSubmit={onSubmit}>

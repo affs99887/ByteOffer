@@ -3,7 +3,7 @@
 // lib/actions/practice.ts
 // Thin practice-session Server Actions (architecture §4.2). requireUser is the security boundary;
 // ownership of any referenced session is enforced inside sessionService (where:{ id, userId }).
-// The returned question is always key-STRIPPED (§5.4) — an un-answered client never sees the key.
+// The returned questions are always key-STRIPPED (§5.4) — an un-answered client never sees the key.
 
 import { defineAction } from "@/lib/server/action";
 import { requireUser } from "@/lib/server/guards";
@@ -11,7 +11,7 @@ import { assertRateLimit } from "@/lib/server/ratelimit";
 import * as entitlementService from "@/lib/server/services/entitlementService";
 import * as sessionService from "@/lib/server/services/sessionService";
 import type {
-  PracticeQuestionResult,
+  PracticeBatchResult,
   StartPracticeResult,
 } from "@/lib/server/services/sessionService";
 import { getPracticeQuestionSchema, startPracticeSchema } from "@/lib/validation/exam";
@@ -34,13 +34,14 @@ export const startPracticeSessionAction = defineAction(
 export const getQuestionForPracticeAction = defineAction(
   getPracticeQuestionSchema,
   requireUser,
-  async (input, user): Promise<PracticeQuestionResult> => {
+  async (input, user): Promise<PracticeBatchResult> => {
     await assertRateLimit("question:read", user.id, READ_LIMIT);
-    return sessionService.getPracticeQuestion({
+    return sessionService.getPracticeQuestions({
       userId: user.id,
       sessionId: input.sessionId,
       filters: input.filters,
       cursor: input.cursor,
+      take: input.take,
     });
   },
 );

@@ -39,7 +39,8 @@ export default async function AdminDashboardPage() {
           title="快捷入口"
           desc={
             <>
-              <a href="/admin/questions" style={link}>题库管理</a> · <a href="/admin/import" style={link}>批量导入</a> ·{" "}
+              <a href="/admin/banks" style={link}>题库管理</a> · <a href="/admin/questions" style={link}>题目管理</a> ·{" "}
+              <a href="/admin/import" style={link}>批量导入</a> ·{" "}
               <a href="/admin/review" style={link}>审核队列{stats.questions.inReview > 0 ? `（${stats.questions.inReview}）` : ""}</a> ·{" "}
               <a href="/admin/users" style={link}>用户</a>
             </>

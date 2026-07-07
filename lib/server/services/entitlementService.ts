@@ -29,12 +29,23 @@ import type { Entitlement, PlanTier, Prisma } from "@prisma/client";
 /** A Prisma client or an interactive-transaction client — both expose the model + $executeRaw. */
 type Db = typeof prisma | Prisma.TransactionClient;
 
-/** The default free entitlement when a user has no Entitlement row yet (§6.1 free plan). */
+/**
+ * The default free entitlement when a user has no Entitlement row yet (§6.1 free plan).
+ *
+ * FREE-FOR-ALL RELEASE (product decision): every feature is free for registered users this release —
+ * no paywall, no quota. So the free default grants everything a paid tier would: `dailyQuota: null`
+ * (unlimited — the atomic quota gate short-circuits on null, see assertCanAttempt), `premiumBanks:
+ * true`, `examMode: true`. `aiExplain` is false because there is NO AI feature this release. The
+ * seeded free/plus Plan rows mirror these exact values, so get() and a webhook rebuild resolve to the
+ * same grants whether or not an Entitlement row exists. The gate functions below are retained intact
+ * (cheap future-proofing; other files call them) but with `dailyQuota: null` the quota paywall is
+ * physically unreachable.
+ */
 export const DEFAULT_FREE_ENTITLEMENT: Entitlement = {
   userId: "",
   tier: "free" as PlanTier,
-  dailyQuota: 30,
-  premiumBanks: false,
+  dailyQuota: null,
+  premiumBanks: true,
   examMode: true,
   aiExplain: false,
   validUntil: null,
@@ -195,16 +206,20 @@ export async function rebuildEntitlement(userId: string, tx?: Db): Promise<void>
     sub !== null && isEffectivelyEntitled(sub.status, sub.currentPeriodEnd, now);
   const effectiveTier: PlanTier = entitled ? sub!.tier : "free";
 
-  // Plan config for the effective tier is the source of the quota/flags. Fall back to a static free
-  // default so a missing Plan row (unseeded env) still yields a coherent free entitlement.
+  // Plan config for the effective tier is the source of the quota/flags. FREE-FOR-ALL RELEASE: both
+  // tiers grant everything this release (mirrors DEFAULT_FREE_ENTITLEMENT and the seeded Plan rows),
+  // so the fallback used when the Plan row is missing (unseeded env) also grants everything — the
+  // paywall stays physically unreachable even with an empty Plan table. `aiExplain` is false (no AI
+  // feature this release). The tier label itself is still `effectiveTier`, so a webhook downgrade to
+  // free is recorded faithfully; it just no longer strips any capability.
   const plan = await db.plan.findUnique({ where: { tier: effectiveTier } });
 
   const config =
     plan ?? {
-      dailyQuota: effectiveTier === "free" ? DEFAULT_FREE_ENTITLEMENT.dailyQuota : null,
-      premiumBanks: effectiveTier !== "free",
+      dailyQuota: null, // null = unlimited → the atomic quota gate short-circuits, no daily cap.
+      premiumBanks: true,
       examMode: true,
-      aiExplain: effectiveTier !== "free",
+      aiExplain: false,
     };
 
   // validUntil mirrors the subscription period end only while entitled (free → no expiry).

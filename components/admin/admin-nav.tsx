@@ -3,8 +3,9 @@
 // components/admin/admin-nav.tsx
 // Left admin navigation. Client component so it can highlight the active route via usePathname.
 // Links are plain <Link>s; the visual language mirrors the app's rail (var(--surface)/--line,
-// --pri for active). Kept intentionally simple — a flat list of the five admin sections plus a
-// "返回应用" escape hatch back to /.
+// --pri for active). Kept intentionally simple — a flat list of the admin sections plus a
+// "返回应用" escape hatch back to /. "题库管理" (banks) and "题目管理" (individual questions) are
+// deliberately distinct sections: you create a bank first, then add questions to it.
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -18,7 +19,8 @@ interface NavItem {
 
 const ITEMS: NavItem[] = [
   { href: "/admin/dashboard", label: "仪表盘", hint: "DASHBOARD" },
-  { href: "/admin/questions", label: "题库管理", hint: "QUESTIONS" },
+  { href: "/admin/banks", label: "题库管理", hint: "BANKS" },
+  { href: "/admin/questions", label: "题目管理", hint: "QUESTIONS" },
   { href: "/admin/import", label: "批量导入", hint: "IMPORT" },
   { href: "/admin/review", label: "审核队列", hint: "REVIEW" },
   { href: "/admin/users", label: "用户", hint: "USERS" },

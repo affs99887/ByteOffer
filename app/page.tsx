@@ -4,8 +4,9 @@
 // 免费开始) — it never force-redirects an authed visitor away, so everyone can see the landing. The
 // auth() call makes the route dynamic (ƒ); that is fine (nothing here reads the DB, so it is
 // build-safe with no database). Visual language mirrors the app: computeThemeVars on a .bo-th
-// wrapper so every var(--*) resolves, Space Grotesk / JetBrains Mono / Noto Sans SC, the
-// code-bracket logo, and the `// LABEL` mono accents. Pure inline styles + CSS vars; no new deps.
+// wrapper so every var(--*) resolves, the self-hosted Space Grotesk / JetBrains Mono brand faces via
+// the var(--font-*) tokens (see app/layout.tsx; Chinese uses the system CJK stack), the code-bracket
+// logo, and the `// LABEL` mono accents. Pure inline styles + CSS vars; no new deps.
 
 import type { CSSProperties } from "react";
 import Link from "next/link";
@@ -16,16 +17,17 @@ import { auth } from "@/lib/server/auth";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "ByteOffer · 前端面试刷题系统 — 从刷题到拿 Offer",
+  // absolute → opt out of the layout's `%s · ByteOffer` template (this is the brand root page).
+  title: { absolute: "ByteOffer · 前端面试刷题系统 — 从刷题到拿 Offer" },
   description:
-    "ByteOffer 是面向前端工程师的面试刷题系统：13 种题型、客观题自动判分、主观题参考答案 + 自评、模拟面试考试模式、错题本/收藏夹、数据统计、题库导入导出与管理后台。",
+    "ByteOffer 是面向前端工程师的面试刷题系统：12 种题型、客观题自动判分、主观题参考答案 + 自评、模拟面试考试模式、错题本/收藏夹、数据统计与题库导入导出。注册即用，全部功能免费开放。",
 };
 
 const themeVars = computeThemeVars(PRIMARY_PRESETS[0], "light", "light");
 
 // ---- shared style atoms ---------------------------------------------------
 const mono: CSSProperties = {
-  fontFamily: "'JetBrains Mono',monospace",
+  fontFamily: "var(--font-jetbrains-mono),ui-monospace,monospace",
   fontSize: "11px",
   letterSpacing: ".14em",
   color: "var(--pri)",
@@ -38,7 +40,7 @@ const sectionWrap: CSSProperties = {
   boxSizing: "border-box",
 };
 const heading: CSSProperties = {
-  fontFamily: "'Space Grotesk','Noto Sans SC',sans-serif",
+  fontFamily: "var(--font-space-grotesk),'PingFang SC','Microsoft YaHei','Source Han Sans SC',sans-serif",
   fontWeight: 700,
   color: "var(--ink)",
   letterSpacing: "-.02em",
@@ -75,7 +77,7 @@ const iStroke = { fill: "none", stroke: "var(--pri)", strokeWidth: 1.7, strokeLi
 const FEATURES: Feature[] = [
   {
     badge: "// GRADING",
-    title: "13 种题型 · 客观题自动判分",
+    title: "12 种题型 · 客观题自动判分",
     body: "单选 / 多选 / 判断 / 填空 / 数值 / 输出预测 / 排序 / 匹配 即时判分；简答 / 问答 / 编程 / 情景 给参考答案 + 自评。",
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" {...iStroke}><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M8.5 12l2.4 2.4L15.5 9.5" /></svg>
@@ -138,7 +140,7 @@ const btnBase: CSSProperties = {
   borderRadius: "9px",
   fontSize: "14px",
   fontWeight: 600,
-  fontFamily: "'Space Grotesk','Noto Sans SC',sans-serif",
+  fontFamily: "var(--font-space-grotesk),'PingFang SC','Microsoft YaHei','Source Han Sans SC',sans-serif",
   textDecoration: "none",
   cursor: "pointer",
   whiteSpace: "nowrap",
@@ -193,7 +195,7 @@ export default async function LandingPage() {
         width: "100%",
         color: "var(--ink)",
         backgroundColor: "var(--canvas)",
-        fontFamily: "'Space Grotesk','Noto Sans SC',sans-serif",
+        fontFamily: "var(--font-space-grotesk),'PingFang SC','Microsoft YaHei','Source Han Sans SC',sans-serif",
         overflowX: "hidden",
       }}
     >
@@ -222,8 +224,8 @@ export default async function LandingPage() {
           <div style={{ display: "flex", alignItems: "center", gap: "11px", minWidth: 0 }}>
             <LogoMark size={30} />
             <div style={{ display: "flex", alignItems: "baseline", gap: "9px", minWidth: 0 }}>
-              <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: "17px", fontWeight: 700, color: "var(--ink)" }}>ByteOffer</span>
-              <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "10px", letterSpacing: ".16em", color: "var(--pri)", fontWeight: 600 }} className="bo-navtag">INTERVIEW · OS</span>
+              <span style={{ fontFamily: "var(--font-space-grotesk),sans-serif", fontSize: "17px", fontWeight: 700, color: "var(--ink)" }}>ByteOffer</span>
+              <span style={{ fontFamily: "var(--font-jetbrains-mono),ui-monospace,monospace", fontSize: "10px", letterSpacing: ".16em", color: "var(--pri)", fontWeight: 600 }} className="bo-navtag">INTERVIEW · OS</span>
             </div>
           </div>
 
@@ -279,12 +281,12 @@ export default async function LandingPage() {
             }}
           />
           <div style={{ position: "relative", maxWidth: "760px" }}>
-            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "12px", letterSpacing: ".18em", color: "#7FA0FF", fontWeight: 600, marginBottom: "20px" }}>
+            <div style={{ fontFamily: "var(--font-jetbrains-mono),ui-monospace,monospace", fontSize: "12px", letterSpacing: ".18em", color: "#7FA0FF", fontWeight: 600, marginBottom: "20px" }}>
               // FRONT-END INTERVIEW · OS
             </div>
             <h1
               style={{
-                fontFamily: "'Space Grotesk','Noto Sans SC',sans-serif",
+                fontFamily: "var(--font-space-grotesk),'PingFang SC','Microsoft YaHei','Source Han Sans SC',sans-serif",
                 fontWeight: 700,
                 letterSpacing: "-.03em",
                 lineHeight: 1.12,
@@ -298,8 +300,8 @@ export default async function LandingPage() {
               <span style={{ color: "#8FAAFF" }}>从刷题到拿 Offer</span>
             </h1>
             <p style={{ fontSize: "clamp(15px, 1.6vw, 18px)", lineHeight: 1.7, color: "#AEB6C7", margin: "22px 0 0", maxWidth: "620px" }}>
-              13 种题型、客观题自动判分、主观题参考答案 + 自评，配合模拟面试、错题本与数据统计。
-              一个把「刷题 → 复盘 → 拿 Offer」跑通的完整系统。
+              12 种题型、客观题自动判分、主观题参考答案 + 自评，配合模拟面试、错题本与数据统计。
+              一个把「刷题 → 复盘 → 拿 Offer」跑通的完整系统，全部功能免费开放。
             </p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "14px", marginTop: "34px" }}>
               {authed ? (
@@ -311,13 +313,13 @@ export default async function LandingPage() {
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "22px", marginTop: "40px" }}>
               {[
-                ["13", "种题型"],
-                ["8", "大分类"],
-                ["自动", "客观题判分"],
-                ["无需", "注册即可 Demo"],
+                ["12", "种题型"],
+                ["10", "大分类"],
+                ["免费", "全部功能"],
+                ["无需", "信用卡"],
               ].map(([a, b]) => (
                 <div key={b} style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
-                  <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "22px", fontWeight: 700, color: "#fff", lineHeight: 1 }}>{a}</span>
+                  <span style={{ fontFamily: "var(--font-jetbrains-mono),ui-monospace,monospace", fontSize: "22px", fontWeight: 700, color: "#fff", lineHeight: 1 }}>{a}</span>
                   <span style={{ fontSize: "12px", color: "#8891A4" }}>{b}</span>
                 </div>
               ))}
@@ -404,7 +406,7 @@ export default async function LandingPage() {
             >
               <div
                 style={{
-                  fontFamily: "'JetBrains Mono',monospace",
+                  fontFamily: "var(--font-jetbrains-mono),ui-monospace,monospace",
                   fontSize: "44px",
                   fontWeight: 700,
                   color: "var(--pri)",
@@ -426,45 +428,42 @@ export default async function LandingPage() {
       <section style={{ ...sectionWrap, paddingTop: "56px", paddingBottom: "20px" }}>
         <div style={{ marginBottom: "26px" }}>
           <div style={mono}>// PRICING</div>
-          <h2 style={{ ...heading, fontSize: "clamp(24px, 3vw, 32px)", margin: "10px 0 8px" }}>免费开始，需要时再升级</h2>
-          <p style={{ fontSize: "15px", color: "var(--ink2)", margin: 0, lineHeight: 1.7 }}>Free 足够开始每日练习，Plus 解锁无限题量与全部题库。</p>
+          <h2 style={{ ...heading, fontSize: "clamp(24px, 3vw, 32px)", margin: "10px 0 8px" }}>全部功能，免费开放</h2>
+          <p style={{ fontSize: "15px", color: "var(--ink2)", margin: 0, lineHeight: 1.7 }}>注册即用，无限练习、全部题库、模拟考试与数据统计全部免费，无需信用卡。Plus 会员即将推出。</p>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "16px", alignItems: "stretch" }}>
-          {/* Free */}
-          <div style={{ background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "16px", padding: "26px 24px", display: "flex", flexDirection: "column" }}>
+          {/* Free — the real, current offering (highlighted). */}
+          <div style={{ position: "relative", background: "var(--surface)", border: "1.5px solid var(--pri)", borderRadius: "16px", padding: "26px 24px", display: "flex", flexDirection: "column", boxShadow: "0 12px 34px rgba(45,91,255,.12)" }}>
+            <div style={{ position: "absolute", top: "18px", right: "20px", fontFamily: "var(--font-jetbrains-mono),ui-monospace,monospace", fontSize: "10.5px", fontWeight: 700, letterSpacing: ".08em", color: "#fff", background: "var(--pri)", borderRadius: "6px", padding: "3px 9px" }}>当前版本</div>
             <div style={{ ...mono, color: "var(--ink3)" }}>// FREE</div>
             <div style={{ display: "flex", alignItems: "baseline", gap: "8px", marginTop: "12px" }}>
-              <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: "30px", fontWeight: 700, color: "var(--ink)" }}>免费版</span>
+              <span style={{ fontFamily: "var(--font-space-grotesk),sans-serif", fontSize: "30px", fontWeight: 700, color: "var(--ink)" }}>免费版</span>
+              <span style={{ fontSize: "13.5px", color: "var(--ink3)" }}>¥0 · 永久免费</span>
             </div>
-            <div style={{ fontSize: "13.5px", color: "var(--ink2)", marginTop: "6px" }}>每日 30 题 · 完整刷题体验</div>
+            <div style={{ fontSize: "13.5px", color: "var(--ink2)", marginTop: "6px" }}>完全免费 · 全部功能开放</div>
             <ul style={{ listStyle: "none", padding: 0, margin: "18px 0 0", display: "flex", flexDirection: "column", gap: "11px" }}>
-              {["13 种题型 · 客观题自动判分", "错题本 / 收藏夹 / 数据统计", "模拟面试 · 考试模式"].map((t) => (
+              {["12 种题型 · 客观题自动判分", "无限练习 · 全部题库开放", "模拟面试 · 错题本 · 数据统计"].map((t) => (
                 <li key={t} style={{ display: "flex", alignItems: "flex-start", gap: "9px", fontSize: "13.5px", color: "var(--ink)" }}>
                   <Check /> {t}
                 </li>
               ))}
             </ul>
           </div>
-          {/* Plus */}
-          <div style={{ position: "relative", background: "var(--surface)", border: "1.5px solid var(--pri)", borderRadius: "16px", padding: "26px 24px", display: "flex", flexDirection: "column", boxShadow: "0 12px 34px rgba(45,91,255,.12)" }}>
-            <div style={{ position: "absolute", top: "18px", right: "20px", fontFamily: "'JetBrains Mono',monospace", fontSize: "10.5px", fontWeight: 700, letterSpacing: ".08em", color: "#B7791F", background: "rgba(247,144,9,.14)", borderRadius: "6px", padding: "3px 9px" }}>PLUS</div>
-            <div style={{ ...mono }}>// PLUS</div>
+          {/* Plus —「即将推出」placeholder. No price, no AI, no purchasable feature. */}
+          <div style={{ position: "relative", background: "var(--surface)", border: "1px dashed var(--line)", borderRadius: "16px", padding: "26px 24px", display: "flex", flexDirection: "column", opacity: 0.92 }}>
+            <div style={{ position: "absolute", top: "18px", right: "20px", fontFamily: "var(--font-jetbrains-mono),ui-monospace,monospace", fontSize: "10.5px", fontWeight: 700, letterSpacing: ".08em", color: "var(--ink3)", background: "var(--surface-2, #EEF0F4)", border: "1px solid var(--line)", borderRadius: "6px", padding: "3px 9px" }}>即将推出</div>
+            <div style={{ ...mono, color: "var(--ink3)" }}>// PLUS</div>
             <div style={{ display: "flex", alignItems: "baseline", gap: "8px", marginTop: "12px" }}>
-              <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: "30px", fontWeight: 700, color: "var(--ink)" }}>¥29</span>
-              <span style={{ fontSize: "13.5px", color: "var(--ink3)" }}>/ 月起</span>
+              <span style={{ fontFamily: "var(--font-space-grotesk),sans-serif", fontSize: "26px", fontWeight: 700, color: "var(--ink3)" }}>敬请期待</span>
             </div>
-            <div style={{ fontSize: "13.5px", color: "var(--ink2)", marginTop: "6px" }}>无限题量 · 解锁全部题库</div>
-            <ul style={{ listStyle: "none", padding: 0, margin: "18px 0 0", display: "flex", flexDirection: "column", gap: "11px" }}>
-              {["Free 全部功能", "无限刷题 · 全部题库", "题库导入导出 · 优先支持"].map((t) => (
-                <li key={t} style={{ display: "flex", alignItems: "flex-start", gap: "9px", fontSize: "13.5px", color: "var(--ink)" }}>
-                  <Check /> {t}
-                </li>
-              ))}
-            </ul>
+            <div style={{ fontSize: "13.5px", color: "var(--ink2)", marginTop: "6px" }}>Plus 会员</div>
+            <p style={{ fontSize: "13.5px", color: "var(--ink2)", lineHeight: 1.65, margin: "18px 0 0" }}>
+              更多高级能力正在打磨中。当前版本已把全部核心功能免费开放，Plus 上线前你不会错过任何东西。
+            </p>
           </div>
         </div>
         <div style={{ marginTop: "22px" }}>
-          <Link href="/pricing" style={{ ...primaryBtn, boxShadow: "none", background: "var(--surface)", color: "var(--pri)", border: "1px solid var(--pri)" }}>查看定价 {arrow}</Link>
+          <Link href="/pricing" style={{ ...primaryBtn, boxShadow: "none", background: "var(--surface)", color: "var(--pri)", border: "1px solid var(--pri)" }}>查看方案 {arrow}</Link>
         </div>
       </section>
 
@@ -483,8 +482,8 @@ export default async function LandingPage() {
         >
           <div aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(560px 300px at 50% 0%, rgba(45,91,255,.34), transparent 62%)", pointerEvents: "none" }} />
           <div style={{ position: "relative" }}>
-            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "11px", letterSpacing: ".18em", color: "#7FA0FF", fontWeight: 600, marginBottom: "14px" }}>// START NOW</div>
-            <h2 style={{ fontFamily: "'Space Grotesk','Noto Sans SC',sans-serif", fontWeight: 700, letterSpacing: "-.02em", fontSize: "clamp(24px, 3.4vw, 36px)", color: "#fff", margin: 0 }}>
+            <div style={{ fontFamily: "var(--font-jetbrains-mono),ui-monospace,monospace", fontSize: "11px", letterSpacing: ".18em", color: "#7FA0FF", fontWeight: 600, marginBottom: "14px" }}>// START NOW</div>
+            <h2 style={{ fontFamily: "var(--font-space-grotesk),'PingFang SC','Microsoft YaHei','Source Han Sans SC',sans-serif", fontWeight: 700, letterSpacing: "-.02em", fontSize: "clamp(24px, 3.4vw, 36px)", color: "#fff", margin: 0 }}>
               今天就开始刷题，向 Offer 更近一步
             </h2>
             <p style={{ fontSize: "15px", color: "#AEB6C7", margin: "14px auto 0", maxWidth: "520px", lineHeight: 1.7 }}>免费注册即可开始，或先用 Demo 体验完整流程。</p>
@@ -517,8 +516,8 @@ export default async function LandingPage() {
           <div style={{ display: "flex", alignItems: "center", gap: "11px" }}>
             <LogoMark size={28} />
             <div>
-              <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: "15px", fontWeight: 700, color: "var(--ink)" }}>ByteOffer</div>
-              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "11px", color: "var(--ink3)" }}>© 2026 ByteOffer · 前端面试刷题系统</div>
+              <div style={{ fontFamily: "var(--font-space-grotesk),sans-serif", fontSize: "15px", fontWeight: 700, color: "var(--ink)" }}>ByteOffer</div>
+              <div style={{ fontFamily: "var(--font-jetbrains-mono),ui-monospace,monospace", fontSize: "11px", color: "var(--ink3)" }}>© 2026 ByteOffer · 前端面试刷题系统</div>
             </div>
           </div>
           <nav style={{ display: "flex", flexWrap: "wrap", gap: "20px" }}>
@@ -527,6 +526,8 @@ export default async function LandingPage() {
               ["注册", "/register"],
               ["定价", "/pricing"],
               ["Demo", "/demo"],
+              ["隐私政策", "/privacy"],
+              ["服务条款", "/terms"],
             ].map(([label, href]) => (
               <Link key={href} href={href} style={{ fontSize: "13.5px", color: "var(--ink2)", textDecoration: "none", fontWeight: 600 }} className="bo-navlink">
                 {label}

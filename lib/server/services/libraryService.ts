@@ -14,9 +14,31 @@ import type { Difficulty, Prisma, QuestionType } from "@prisma/client";
 
 const DEFAULT_TAKE = 20;
 
+/**
+ * A library list row: the existing ListItem PLUS this user's favorite state for the question, so
+ * the wrongbook/recent/favorites screens can render an accurate star without a second round-trip
+ * (§7.4). fav is joined from the Favorite table for the page's ids (one batched query, no N+1).
+ */
+export interface LibraryListItem extends ListItem {
+  fav: boolean;
+}
+
 export interface ListItemsResult {
-  items: ListItem[];
+  items: LibraryListItem[];
   nextCursor: string | null;
+}
+
+/**
+ * favoritedSet — the subset of `questionIds` this user has favorited, as a Set for O(1) lookup.
+ * One batched query for the whole page (no N+1). Empty in → empty out (no query).
+ */
+async function favoritedSet(userId: string, questionIds: string[]): Promise<Set<string>> {
+  if (questionIds.length === 0) return new Set();
+  const favs = await prisma.favorite.findMany({
+    where: { userId, questionId: { in: questionIds } },
+    select: { questionId: true },
+  });
+  return new Set(favs.map((f) => f.questionId));
 }
 
 /** The Question fields needed to project a ListItem (no payload / media base64, §10). */
@@ -60,7 +82,9 @@ const QUESTION_SELECT = {
 
 /**
  * listWrongbook — the user's wrongbook entries (ownership-scoped), newest-wrong first, cursor
- * -paginated. Optional `mastered` filter. Joins the Question projection for the ListItem.
+ * -paginated. Honors the optional `mastered` filter (true → only mastered, false → only unmastered,
+ * omitted → all). Joins the Question projection for the ListItem and the Favorite table (batched)
+ * so each row carries an accurate `fav`.
  */
 export async function listWrongbook(params: {
   userId: string;
@@ -83,9 +107,11 @@ export async function listWrongbook(params: {
 
   const hasMore = rows.length > take;
   const page = hasMore ? rows.slice(0, take) : rows;
-  const items = page.map((r) =>
-    toListItem(r.question, { wrongCount: r.wrongCount, lastAt: r.lastWrongAt }),
-  );
+  const favSet = await favoritedSet(userId, page.map((r) => r.questionId));
+  const items: LibraryListItem[] = page.map((r) => ({
+    ...toListItem(r.question, { wrongCount: r.wrongCount, lastAt: r.lastWrongAt }),
+    fav: favSet.has(r.questionId),
+  }));
   const nextCursor = hasMore ? page[page.length - 1].questionId : null;
 
   return { items, nextCursor };
@@ -146,7 +172,8 @@ export async function toggleFavorite(params: {
 
 /**
  * listFavorites — the user's favorites (ownership-scoped), newest-first, cursor-paginated. Joins
- * the Question projection + Progress (for the wrong/last columns) into a ListItem.
+ * the Question projection + Progress (for the wrong/last columns) into a ListItem. Every row is a
+ * favorite here, so `fav` is true by definition (no extra Favorite query needed).
  */
 export async function listFavorites(params: {
   userId: string;
@@ -174,12 +201,13 @@ export async function listFavorites(params: {
   });
   const pByQ = new Map(progress.map((p) => [p.questionId, p]));
 
-  const items = page.map((r) =>
-    toListItem(r.question, {
+  const items: LibraryListItem[] = page.map((r) => ({
+    ...toListItem(r.question, {
       wrongCount: pByQ.get(r.questionId)?.wrongCount ?? 0,
       lastAt: pByQ.get(r.questionId)?.lastAt ?? null,
     }),
-  );
+    fav: true,
+  }));
   const nextCursor = hasMore ? page[page.length - 1].questionId : null;
 
   return { items, nextCursor };
@@ -188,7 +216,8 @@ export async function listFavorites(params: {
 /**
  * listRecent — recently-practiced questions (ownership-scoped), by Progress.lastAt desc,
  * cursor-paginated (cursor is the questionId of the last item; the composite key orders it).
- * The `last` column shows a formatted last-activity date.
+ * The `last` column shows a formatted last-activity date. Joins the Favorite table (batched) so
+ * each row carries an accurate `fav`.
  */
 export async function listRecent(params: {
   userId: string;
@@ -207,9 +236,11 @@ export async function listRecent(params: {
 
   const hasMore = rows.length > take;
   const page = hasMore ? rows.slice(0, take) : rows;
-  const items = page.map((r) =>
-    toListItem(r.question, { wrongCount: r.wrongCount, lastAt: r.lastAt }),
-  );
+  const favSet = await favoritedSet(userId, page.map((r) => r.questionId));
+  const items: LibraryListItem[] = page.map((r) => ({
+    ...toListItem(r.question, { wrongCount: r.wrongCount, lastAt: r.lastAt }),
+    fav: favSet.has(r.questionId),
+  }));
   const nextCursor = hasMore ? page[page.length - 1].questionId : null;
 
   return { items, nextCursor };

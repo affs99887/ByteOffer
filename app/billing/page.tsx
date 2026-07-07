@@ -1,31 +1,38 @@
 // app/billing/page.tsx
 // Authenticated billing page (architecture §6.2, §6.5). Server component, requireUser (the
 // authoritative boundary), force-dynamic (awaits auth + reads per-user DB state, never prerendered).
-// Shows the current entitlement tier + validUntil + subscription status, and the manage buttons:
-//   - 升级到 Plus  → client CheckoutButton (§6.2)
-//   - 管理订阅     → client PortalButton (Stripe Billing Portal)
-//   - 删除账户     → client DeleteAccountButton (two-step confirm, §6.5)
 //
-// All reads are try/catch-guarded so a cold DB renders a safe free view rather than crashing. The
-// tier shown is the DENORMALIZED entitlement snapshot (webhook-derived) — the single gating truth.
+// FREE-FOR-ALL RELEASE (binding product decision): every feature is free this release and nothing is
+// on sale, so there is NO upgrade / checkout UI here (the CheckoutButton component was removed). The
+// page shows:
+//   - Current plan: 免费版 · 全功能开放 (no fake daily-quota line — the quota is unlimited).
+//   - Legacy subscription: ONLY when a Subscription row still carries a stripeSubscriptionId (a
+//     historical subscriber). Then we surface its status + a PortalButton so they can self-serve
+//     cancel — otherwise no Stripe UI renders at all (and the page is fine with zero Stripe env).
+//   - Danger zone: two-step DeleteAccountButton (§6.5).
+//   - A dismissible notice for a legacy ?checkout=success|cancel redirect (the payment flow is
+//     dormant), so a stale bookmark/redirect gets an honest message instead of a silent no-op.
+//
+// All reads are try/catch-guarded so a cold DB renders a safe view rather than crashing.
 
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import { computeThemeVars, PRIMARY_PRESETS } from "@/lib/theme";
 import { requireUser } from "@/lib/server/guards";
-import { env } from "@/lib/server/env";
 import { prisma } from "@/lib/server/db";
-import * as entitlementService from "@/lib/server/services/entitlementService";
-import { CheckoutButton } from "@/components/billing/checkout-button";
 import { PortalButton } from "@/components/billing/portal-button";
 import { DeleteAccountButton } from "@/components/billing/delete-account-button";
 import type { SubStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-export const metadata = { title: "订阅与账单 · ByteOffer" };
+export const metadata = { title: "订阅与账单" };
 
 const themeVars = computeThemeVars(PRIMARY_PRESETS[0], "light", "light");
+
+const FONT_SANS =
+  "var(--font-space-grotesk),'PingFang SC','Microsoft YaHei','Source Han Sans SC',sans-serif";
+const FONT_MONO = "var(--font-jetbrains-mono),ui-monospace,'SFMono-Regular',monospace";
 
 const STATUS_LABEL: Record<SubStatus, string> = {
   active: "有效",
@@ -46,33 +53,37 @@ function fmtDate(d: Date | null | undefined): string {
   return `${y}-${m}-${day}`;
 }
 
-export default async function BillingPage() {
+export default async function BillingPage({
+  searchParams,
+}: {
+  // searchParams is a Promise in Next 16 (App Router server components).
+  searchParams: Promise<{ checkout?: string | string[] }>;
+}) {
   const user = await requireUser();
+  const sp = await searchParams;
+  const checkoutRaw = Array.isArray(sp.checkout) ? sp.checkout[0] : sp.checkout;
+  const checkout = checkoutRaw === "success" || checkoutRaw === "cancel" ? checkoutRaw : null;
 
-  // Denormalized entitlement (webhook-derived) is the tier truth; Subscription carries status.
-  let tier: "free" | "plus" = "free";
-  let validUntil: Date | null = null;
+  // Legacy Stripe subscription (if any). A stripeSubscriptionId is the marker of a real historical
+  // subscriber; without it there is nothing to manage and no Stripe UI is shown.
   let status: SubStatus | null = null;
-  let hasSubRow = false;
+  let stripeSubscriptionId: string | null = null;
+  let currentPeriodEnd: Date | null = null;
   try {
-    const ent = await entitlementService.get(user.id);
-    tier = ent.tier;
-    validUntil = ent.validUntil;
     const sub = await prisma.subscription.findUnique({
       where: { userId: user.id },
-      select: { status: true },
+      select: { status: true, stripeSubscriptionId: true, currentPeriodEnd: true },
     });
     if (sub) {
       status = sub.status;
-      hasSubRow = true;
+      stripeSubscriptionId = sub.stripeSubscriptionId;
+      currentPeriodEnd = sub.currentPeriodEnd;
     }
   } catch {
-    // Cold DB → default free view.
+    // Cold DB → default view without a legacy-subscription section.
   }
 
-  const isPlus = tier === "plus";
-  const priceMonthly = env.STRIPE_PRICE_PLUS_MONTHLY || null;
-  const priceYearly = env.STRIPE_PRICE_PLUS_YEARLY || null;
+  const hasLegacySub = Boolean(stripeSubscriptionId);
 
   return (
     <div
@@ -83,7 +94,7 @@ export default async function BillingPage() {
         width: "100%",
         color: "var(--ink)",
         backgroundColor: "var(--canvas)",
-        fontFamily: "'Space Grotesk','Noto Sans SC',sans-serif",
+        fontFamily: FONT_SANS,
         padding: "48px 20px",
       }}
     >
@@ -91,71 +102,114 @@ export default async function BillingPage() {
         <div style={mono}>// BILLING · 订阅与账单</div>
         <h1 style={{ fontSize: "24px", fontWeight: 800, margin: "10px 0 22px" }}>订阅与账单</h1>
 
+        {/* Dismissible notice for a stale ?checkout redirect — the payment flow is dormant. The close
+            control is a link back to /billing (no query), so it "dismisses" without any client JS. */}
+        {checkout && (
+          <div style={notice}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ ...mono, fontSize: "10px", color: "var(--ink3)", marginBottom: "6px" }}>
+                  // 支付系统当前未启用
+                </div>
+                <div style={{ fontSize: "13px", color: "var(--ink2)", lineHeight: 1.6 }}>
+                  {checkout === "success"
+                    ? "本版本已把全部功能免费开放，你无需任何支付即可继续使用全部功能。"
+                    : "已取消结账——本版本全部功能均已免费开放，无需支付。"}
+                </div>
+              </div>
+              <Link
+                href="/billing"
+                aria-label="关闭提示"
+                style={{
+                  flex: "none",
+                  color: "var(--ink3)",
+                  fontSize: "18px",
+                  lineHeight: "18px",
+                  textDecoration: "none",
+                  fontWeight: 700,
+                }}
+              >
+                ×
+              </Link>
+            </div>
+          </div>
+        )}
+
         {/* Current plan card */}
         <div style={card}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "14px", flexWrap: "wrap" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "14px",
+              flexWrap: "wrap",
+            }}
+          >
             <div>
               <div style={sub}>当前方案</div>
               <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "6px" }}>
-                <span style={{ fontSize: "20px", fontWeight: 800, color: "var(--ink)" }}>
-                  {isPlus ? "Plus 会员" : "免费版"}
-                </span>
-                <TierBadge plus={isPlus} />
+                <span style={{ fontSize: "20px", fontWeight: 800, color: "var(--ink)" }}>免费版</span>
+                <span style={tierBadge}>FREE</span>
               </div>
             </div>
             <div style={{ textAlign: "right" }}>
-              <div style={sub}>{isPlus ? "有效期至" : "每日额度"}</div>
-              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "15px", fontWeight: 700, color: "var(--ink)", marginTop: "6px" }}>
-                {isPlus ? fmtDate(validUntil) : "30 题 / 天"}
+              <div style={sub}>每日额度</div>
+              <div
+                style={{
+                  fontFamily: FONT_MONO,
+                  fontSize: "15px",
+                  fontWeight: 700,
+                  color: "var(--ink)",
+                  marginTop: "6px",
+                }}
+              >
+                无限制
               </div>
             </div>
           </div>
-
-          {hasSubRow && status && (
-            <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px solid var(--divider)", fontSize: "13px", color: "var(--ink2)" }}>
-              订阅状态：<span style={{ fontWeight: 600, color: status === "active" || status === "trialing" ? "#0A7D4E" : "#B7791F" }}>{STATUS_LABEL[status]}</span>
-            </div>
-          )}
+          <div
+            style={{
+              marginTop: "16px",
+              paddingTop: "16px",
+              borderTop: "1px solid var(--divider)",
+              fontSize: "13px",
+              color: "var(--ink2)",
+              lineHeight: 1.6,
+            }}
+          >
+            全部功能已免费开放：无限练习、全部题库、模拟考试、错题本 / 收藏与数据统计，无需任何付费。
+          </div>
         </div>
 
-        {/* Actions */}
-        <div style={card}>
-          <div style={{ ...sub, marginBottom: "14px" }}>管理</div>
-
-          {!isPlus && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "18px" }}>
-              {priceMonthly ? (
-                <div style={{ maxWidth: "320px" }}>
-                  <CheckoutButton priceId={priceMonthly}>升级到 Plus · 按月（¥29）</CheckoutButton>
-                </div>
-              ) : (
-                <div style={{ fontSize: "13px", color: "var(--ink3)" }}>购买暂未开放（未配置价格）。</div>
-              )}
-              {priceYearly && (
-                <div style={{ maxWidth: "320px" }}>
-                  <CheckoutButton
-                    priceId={priceYearly}
-                    style={{ background: "var(--surface)", color: "var(--pri)", border: "1px solid var(--pri)" }}
-                  >
-                    升级到 Plus · 按年（¥199 · 更划算）
-                  </CheckoutButton>
-                </div>
-              )}
-              <Link href="/pricing" style={{ color: "var(--pri)", fontSize: "13px", fontWeight: 600, textDecoration: "none" }}>
-                查看方案对比 →
-              </Link>
-            </div>
-          )}
-
-          {(isPlus || hasSubRow) && (
-            <div style={{ marginBottom: "6px" }}>
-              <PortalButton>管理订阅（取消 / 更换卡片 / 账单）</PortalButton>
-              <div style={{ fontSize: "12px", color: "var(--ink3)", marginTop: "8px", lineHeight: 1.5 }}>
-                在 Stripe 安全页面中自助管理你的订阅。取消后仍可使用至当前计费周期结束。
+        {/* Legacy subscription — only for historical subscribers with a live Stripe subscription id. */}
+        {hasLegacySub && (
+          <div style={card}>
+            <div style={{ ...sub, marginBottom: "14px" }}>历史订阅</div>
+            {status && (
+              <div style={{ fontSize: "13px", color: "var(--ink2)", marginBottom: "6px" }}>
+                订阅状态：
+                <span
+                  style={{
+                    fontWeight: 600,
+                    color: status === "active" || status === "trialing" ? "#0A7D4E" : "#B7791F",
+                  }}
+                >
+                  {STATUS_LABEL[status]}
+                </span>
               </div>
+            )}
+            {currentPeriodEnd && (
+              <div style={{ fontSize: "13px", color: "var(--ink2)", marginBottom: "14px" }}>
+                当前计费周期至 <span style={{ fontFamily: FONT_MONO }}>{fmtDate(currentPeriodEnd)}</span>
+              </div>
+            )}
+            <PortalButton>管理订阅（取消 / 更换卡片 / 账单）</PortalButton>
+            <div style={{ fontSize: "12px", color: "var(--ink3)", marginTop: "8px", lineHeight: 1.5 }}>
+              本版本已把全部功能免费开放，历史订阅可随时在 Stripe 安全页面中取消，取消后不影响你继续使用全部功能。
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Danger zone */}
         <div style={{ ...card, border: "1px solid #F3D0CE" }}>
@@ -176,27 +230,8 @@ export default async function BillingPage() {
   );
 }
 
-function TierBadge({ plus }: { plus: boolean }) {
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        borderRadius: "6px",
-        padding: "3px 9px",
-        fontSize: "12px",
-        fontWeight: 700,
-        color: plus ? "#B7791F" : "#5A6172",
-        background: plus ? "rgba(247,144,9,.14)" : "rgba(138,146,162,.12)",
-      }}
-    >
-      {plus ? "PLUS" : "FREE"}
-    </span>
-  );
-}
-
 const mono: CSSProperties = {
-  fontFamily: "'JetBrains Mono',monospace",
+  fontFamily: FONT_MONO,
   fontSize: "11px",
   letterSpacing: ".14em",
   color: "var(--pri)",
@@ -211,10 +246,29 @@ const card: CSSProperties = {
   marginBottom: "16px",
 };
 
+const notice: CSSProperties = {
+  background: "var(--pri-w, rgba(45,91,255,.06))",
+  border: "1px solid var(--line)",
+  borderRadius: "12px",
+  padding: "14px 16px",
+  marginBottom: "16px",
+};
+
 const sub: CSSProperties = {
-  fontFamily: "'JetBrains Mono',monospace",
+  fontFamily: FONT_MONO,
   fontSize: "10.5px",
   letterSpacing: ".13em",
   color: "var(--ink3)",
   fontWeight: 600,
+};
+
+const tierBadge: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  borderRadius: "6px",
+  padding: "3px 9px",
+  fontSize: "12px",
+  fontWeight: 700,
+  color: "#5A6172",
+  background: "rgba(138,146,162,.12)",
 };

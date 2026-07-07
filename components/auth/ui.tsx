@@ -2,10 +2,12 @@
 
 // components/auth/ui.tsx (3b-2)
 // Shared building blocks for the auth forms — a brand header, the card frame, styled inputs, the
-// primary submit button, and status banners. All inline-style + CSS-var to match the app look.
-// Kept tiny and presentational so each *-form component stays focused on its action wiring.
+// primary submit button, status banners, and the ResendVerifyButton shared by the register success
+// view and the login "邮箱未验证" prompt. All inline-style + CSS-var to match the app look. Mostly
+// presentational; the one action-wired piece (ResendVerifyButton) lives here so both forms reuse it.
 
-import type { CSSProperties, ReactNode } from "react";
+import { useState, useTransition, type CSSProperties, type ReactNode } from "react";
+import { resendVerificationAction } from "@/lib/actions/auth";
 
 export const cardStyle: CSSProperties = {
   width: "100%",
@@ -76,6 +78,18 @@ export const linkStyle: CSSProperties = {
   color: "var(--pri)",
   fontWeight: 600,
   textDecoration: "none",
+  cursor: "pointer",
+};
+
+// A <button> that reads as a text link (for in-form actions like "重新发送" that must not be an <a>).
+export const linkBtnStyle: CSSProperties = {
+  background: "none",
+  border: "none",
+  padding: 0,
+  color: "var(--pri)",
+  fontWeight: 600,
+  fontSize: "13px",
+  fontFamily: "inherit",
   cursor: "pointer",
 };
 
@@ -163,3 +177,37 @@ export const dividerRow = (label: string): ReactNode => (
     <div style={{ flex: 1, height: "1px", background: "var(--line)" }} />
   </div>
 );
+
+/**
+ * ResendVerifyButton — inline "重新发送验证邮件" control shared by the register success view and the
+ * login "邮箱未验证" prompt. Calls the enumeration-safe resendVerificationAction (always ok) with the
+ * email the user just submitted and shows a transient, non-committal acknowledgement — the wording
+ * never confirms the address exists. `email` is always the just-typed (required) field, so it is
+ * non-empty in practice; the guard is belt-and-suspenders.
+ */
+export function ResendVerifyButton({ email }: { email: string }) {
+  const [pending, startTransition] = useTransition();
+  const [sent, setSent] = useState(false);
+
+  function onClick() {
+    if (!email) return;
+    setSent(false);
+    startTransition(async () => {
+      await resendVerificationAction({ email });
+      setSent(true);
+    });
+  }
+
+  return (
+    <div style={{ marginTop: "10px", textAlign: "center" }}>
+      <button type="button" onClick={onClick} disabled={pending || !email} style={{ ...linkBtnStyle, opacity: pending ? 0.6 : 1 }}>
+        {pending ? "发送中…" : "重新发送验证邮件"}
+      </button>
+      {sent && (
+        <div style={{ fontSize: "12.5px", color: "var(--ink3)", marginTop: "6px", lineHeight: 1.5 }}>
+          如果该邮箱有待验证的账号，我们已重新发送（请查收，含垃圾箱）。
+        </div>
+      )}
+    </div>
+  );
+}

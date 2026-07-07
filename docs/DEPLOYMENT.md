@@ -30,18 +30,19 @@ Never prefix a secret with `NEXT_PUBLIC_` — only `NEXT_PUBLIC_STRIPE_PK` is in
 | `AUTH_URL` | ✅ | Canonical app URL (e.g. `https://byteoffer.example.com`). |
 | `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` | optional | GitHub OAuth (both set → provider enabled). |
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | optional | Google OAuth (both set → provider enabled). |
-| `STRIPE_SECRET_KEY` | optional* | Stripe API key. Unset → billing actions return a friendly "disabled". |
-| `STRIPE_WEBHOOK_SECRET` | optional* | Verifies `/api/stripe/webhook` signatures. Required for billing. |
-| `NEXT_PUBLIC_STRIPE_PK` | optional* | Stripe publishable key (client). Public by design. |
-| `STRIPE_PRICE_PLUS_MONTHLY` / `STRIPE_PRICE_PLUS_YEARLY` | optional* | Plus price ids (checkout allowlist). |
-| `RESEND_API_KEY` / `EMAIL_FROM` | optional | Transactional email (verification / reset). |
+| `STRIPE_SECRET_KEY` | optional (dormant)* | Stripe API key. **Billing is dormant this release — nothing is on sale.** Leave unset for a normal deploy; the app runs fully and no billing/checkout UI is shown. |
+| `STRIPE_WEBHOOK_SECRET` | optional (dormant)* | Verifies `/api/stripe/webhook` signatures. Only needed to keep processing webhooks for **legacy subscribers**. ⚠ If `STRIPE_SECRET_KEY` **is** set this **must** be set too — otherwise the webhook returns **500** (so Stripe retries) rather than silently dropping the event. |
+| `NEXT_PUBLIC_STRIPE_PK` | optional (dormant)* | Stripe publishable key (client). Public by design. |
+| `STRIPE_PRICE_PLUS_MONTHLY` / `STRIPE_PRICE_PLUS_YEARLY` | optional (dormant)* | Legacy Plus price ids (checkout allowlist). Unused while billing is dormant. |
+| `RESEND_API_KEY` / `EMAIL_FROM` | required for email | Transactional email (verification / password reset). **Both must be set for real email to send.** Unset → the app degrades gracefully into a **no-email mode** (it does not crash), so email-dependent flows are limited. |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | recommended | Bootstrap admin created by `prisma db seed`. |
 | `SENTRY_DSN` | optional | Error monitoring. |
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | optional | Switches the rate limiter to Redis (v2). |
-| `CRON_SECRET` | recommended | Guards `/api/cron/reconcile`. **Unset → the cron route is disabled (404).** |
+| `CRON_SECRET` | **required on Vercel** | Guards `/api/cron/reconcile`. **Unset → the cron route is disabled (404)**, so the nightly reconcile declared in `vercel.json` silently no-ops. Set it on Vercel (self-host: set it if you schedule the reconcile). |
 
-\* Stripe vars are only "required" if you enable billing; without them the app runs and the billing
-UI degrades gracefully.
+\* Stripe vars are only relevant if you re-enable billing for legacy subscribers; without them the app
+runs fully and all billing UI is simply absent (this release ships with billing dormant — every
+feature is free).
 
 Copy [`.env.example`](../.env.example) → `.env` and fill real values.
 
@@ -90,6 +91,11 @@ force a re-login after promoting an admin.
 
 ## 4. Stripe — production webhook
 
+> **This release ships with billing dormant** — every feature is free and nothing is on sale, so a
+> normal deploy needs **no** Stripe env at all and can skip this section. Configure Stripe **only** to
+> keep servicing **legacy subscribers** (the server billing infra — webhook / portal / billingService
+> — stays intact for them).
+
 Entitlement changes happen **only** in the verified webhook path; the client success redirect never
 grants access.
 
@@ -104,7 +110,9 @@ grants access.
 
 The endpoint is idempotent (a `ProcessedStripeEvent` ledger row is inserted in the same transaction),
 returns 400 on a bad signature (no retry), and acks 200 + logs on an internal error after a valid
-signature (dead-letter posture, avoids Stripe retry storms).
+signature (dead-letter posture, avoids Stripe retry storms). If `STRIPE_SECRET_KEY` is set but
+`STRIPE_WEBHOOK_SECRET` is **missing**, the route returns **500** (not 200) so Stripe **retries** —
+add the secret and the retried event processes, rather than the event being silently dropped.
 
 **Local testing**: `stripe listen --forward-to localhost:3000/api/stripe/webhook` (test mode).
 
@@ -117,8 +125,9 @@ signature (dead-letter posture, avoids Stripe retry storms).
 materializes counters).
 
 - **Vercel**: [`vercel.json`](../vercel.json) declares the schedule `0 3 * * *` (03:00 UTC daily).
-  Vercel Cron automatically sends `Authorization: Bearer $CRON_SECRET`, so set `CRON_SECRET` in the
-  project env.
+  Vercel Cron automatically sends `Authorization: Bearer $CRON_SECRET`, so `CRON_SECRET` is
+  **required** in the project env. `vercel.json` declares the schedule unconditionally, so if the
+  secret is missing the nightly job hits a **404 and silently no-ops** (no alert) — set it.
 - **Self-host**: hit the route from any scheduler with either header:
   `Authorization: Bearer <CRON_SECRET>` or `x-cron-secret: <CRON_SECRET>`.
 - If `CRON_SECRET` is unset the route is **disabled (404)** so a misconfigured deploy can't run it

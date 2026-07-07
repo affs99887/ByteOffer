@@ -33,6 +33,13 @@ export const requestResetSchema = z.object({
 });
 export type RequestResetInput = z.infer<typeof requestResetSchema>;
 
+// Resend the email-verification link. Same {email} shape as a reset request, kept as a distinct
+// schema so the action reads self-documenting (this is a verify resend, not a password reset).
+export const resendVerificationSchema = z.object({
+  email: emailSchema,
+});
+export type ResendVerificationInput = z.infer<typeof resendVerificationSchema>;
+
 export const resetPasswordSchema = z.object({
   token: z.string().min(1),
   password: strongPassword,

@@ -6,6 +6,11 @@
 // This is server-only (imports env). It is called from auth actions to deliver verification /
 // password-reset links; those callers ALWAYS return an account-enumeration-safe response
 // regardless of whether the email was actually sent.
+//
+// isEmailEnabled() is the SINGLE source of truth for the app's email posture and is imported by
+// the auth layer to switch whole flows: when it is false (no Resend configured) registration is
+// verification-FREE (accounts are born usable) and unverified credential logins are allowed, so a
+// deployment without Resend is never bricked; when true, strict email verification is enforced.
 
 import { env } from "@/lib/server/env";
 import { logger } from "@/lib/server/logger";
@@ -17,8 +22,13 @@ export interface SendEmailInput {
   text?: string;
 }
 
-/** True when Resend is configured with a real (non-empty, non-placeholder) key. */
-function resendEnabled(): boolean {
+/**
+ * isEmailEnabled — true when Resend is configured with a real (non-empty, non-placeholder) key.
+ * Gates the entire email-verification policy (see authService.register / requestPasswordReset /
+ * resendVerification and auth.ts authorize). Kept a pure config read so callers can branch on it
+ * without side effects.
+ */
+export function isEmailEnabled(): boolean {
   const key = env.RESEND_API_KEY;
   if (!key) return false;
   const lowered = key.toLowerCase();
@@ -37,7 +47,7 @@ function resendEnabled(): boolean {
 export async function sendEmail(input: SendEmailInput): Promise<{ sent: boolean }> {
   const from = env.EMAIL_FROM || "ByteOffer <onboarding@resend.dev>";
 
-  if (!resendEnabled()) {
+  if (!isEmailEnabled()) {
     logger.info("email_noop", {
       reason: "RESEND_API_KEY not configured",
       to: input.to,

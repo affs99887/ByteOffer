@@ -2,9 +2,11 @@
 
 // components/auth/register-form.tsx (3b-2)
 // Registration form → registerAction. The response is enumeration-safe (identical whether or not
-// the email exists), so on ok we ALWAYS show the same "验证邮件已发送" confirmation — we never
-// reveal whether the account already existed. Field errors (weak password, bad email) come back
-// in error.fields and render inline.
+// the email exists), so we NEVER reveal whether the account already existed. The success view is
+// DUAL-MODE on the returned `mode` (which reflects only server email config, not account existence):
+//   - "verify" (email configured) → 验证邮件已发送至 <email>，请查收（含垃圾箱） + a 重新发送 button.
+//   - "active" (no email service)  → 注册成功，已可直接登录 → /login (no fake "邮件已发送").
+// Field errors (weak password, bad email) come back in error.fields and render inline.
 
 import { useState, useTransition, type FormEvent } from "react";
 import Link from "next/link";
@@ -18,11 +20,12 @@ import {
   labelStyle,
   linkStyle,
   primaryBtnStyle,
+  ResendVerifyButton,
 } from "./ui";
 
 export function RegisterForm() {
   const [pending, startTransition] = useTransition();
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState<null | { mode: "verify" | "active"; email: string }>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
 
@@ -38,7 +41,7 @@ export function RegisterForm() {
     startTransition(async () => {
       const res = await registerAction({ email, password, ...(name ? { name } : {}) });
       if (res.ok) {
-        setDone(true);
+        setDone({ mode: res.data.mode, email });
         return;
       }
       if (res.error.fields && Object.keys(res.error.fields).length > 0) {
@@ -53,11 +56,18 @@ export function RegisterForm() {
     return (
       <div style={cardStyle}>
         <BrandHeader subtitle="// 注册" />
-        <Banner kind="success">
-          验证邮件已发送。请前往邮箱查收并点击验证链接完成注册（24 小时内有效）。
-        </Banner>
-        <div style={{ textAlign: "center", fontSize: "13px", color: "var(--ink3)", marginTop: "8px" }}>
-          <Link href="/login" style={linkStyle}>返回登录</Link>
+        {done.mode === "verify" ? (
+          <>
+            <Banner kind="success">
+              验证邮件已发送至 {done.email}，请查收（含垃圾箱）。点击邮件中的链接完成验证后即可登录（24 小时内有效）。
+            </Banner>
+            <ResendVerifyButton email={done.email} />
+          </>
+        ) : (
+          <Banner kind="success">注册成功，已可直接登录。</Banner>
+        )}
+        <div style={{ textAlign: "center", fontSize: "13px", color: "var(--ink3)", marginTop: "12px" }}>
+          <Link href="/login" style={linkStyle}>{done.mode === "active" ? "前往登录" : "返回登录"}</Link>
         </div>
       </div>
     );
@@ -90,7 +100,14 @@ export function RegisterForm() {
         </button>
       </form>
 
-      <div style={{ marginTop: "22px", textAlign: "center", fontSize: "13px", color: "var(--ink3)" }}>
+      <div style={{ marginTop: "14px", textAlign: "center", fontSize: "12px", color: "var(--ink3)", lineHeight: 1.6 }}>
+        注册即代表你同意
+        <Link href="/terms" style={{ ...linkStyle, margin: "0 3px" }}>服务条款</Link>
+        与
+        <Link href="/privacy" style={{ ...linkStyle, margin: "0 3px" }}>隐私政策</Link>
+      </div>
+
+      <div style={{ marginTop: "16px", textAlign: "center", fontSize: "13px", color: "var(--ink3)" }}>
         已有账号？
         <Link href="/login" style={{ ...linkStyle, marginLeft: "6px" }}>登录</Link>
       </div>

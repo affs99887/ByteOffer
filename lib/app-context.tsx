@@ -156,11 +156,24 @@ export interface ProgressLite {
   lastAnswer?: UserAnswer;
 }
 
-// Dependency-injected submit (3b-2 passes the server action; standalone grades locally).
+/**
+ * The result of a submit attempt. DISCRIMINATED so the practice flow can tell a graded outcome from
+ * a FAILURE (§B submit robustness): on `ok:false` we must NOT write a pReveal / open analysis — we
+ * surface an inline pSubmitError and keep the answer editable. Demo always resolves `ok:true`
+ * (local grade cannot fail); authed maps a server `{ok:false,error}` straight through here.
+ */
+export type SubmitOutcome =
+  | { ok: true; result: GradeResult; revealed?: AnswerReveal; attemptId?: string }
+  | { ok: false; error: { code: string; message?: string } };
+
+// Dependency-injected submit (3b-2 passes the server action; standalone grades locally). Carries the
+// practice `sessionId` (groups attempts + books studyMs) and a measured `durationMs` (the real time
+// the question was on screen — the studyHours=0 fix was the client never sending it).
 export type SubmitAttemptFn = (
   questionId: string,
   userAnswer: UserAnswer,
-) => Promise<{ result: GradeResult; revealed?: AnswerReveal; attemptId?: string }>;
+  opts?: { sessionId?: string; durationMs?: number },
+) => Promise<SubmitOutcome>;
 
 // ---------- server-action bundle (3b-2) ----------
 // The authenticated app injects the real Server Actions here; standalone/demo passes nothing and
@@ -255,6 +268,29 @@ export function adaptServerReveal(
   return out;
 }
 
+/** A library list row as it crosses the action boundary (ListItem + this user's fav state, §7.4). */
+export interface LibraryListItem extends ListItem {
+  fav: boolean;
+}
+
+/** The practice-filter snapshot the client sends the server (ASCII keys, §7.3). */
+export interface PracticeFilterShape {
+  types?: QuestionType[];
+  difficulty?: Difficulty;
+  tags?: string[];
+  bankId?: string;
+}
+
+/** Loose mirror of the server ExamStateResult (all deep fields loose so the action bundle assigns). */
+export interface ExamStateLike {
+  sessionId: string;
+  status: string;
+  questions: unknown[];
+  remainingSec: number;
+  durationSec: number;
+  answers: Record<string, UserAnswer>;
+}
+
 export interface AppActionsBundle {
   submitAttempt?: (input: {
     questionId: string;
@@ -269,21 +305,28 @@ export interface AppActionsBundle {
   }) => Promise<ActionResult<{ result: GradeResult }>>;
   toggleFavorite?: (input: { questionId: string }) => Promise<ActionResult<{ fav: boolean }>>;
   listWrongbook?: (input: { cursor?: string; mastered?: boolean }) => Promise<
-    ActionResult<{ items: ListItem[]; nextCursor: string | null }>
+    ActionResult<{ items: LibraryListItem[]; nextCursor: string | null }>
   >;
   listFavorites?: (input: { cursor?: string }) => Promise<
-    ActionResult<{ items: ListItem[]; nextCursor: string | null }>
+    ActionResult<{ items: LibraryListItem[]; nextCursor: string | null }>
   >;
   listRecent?: (input: { cursor?: string }) => Promise<
-    ActionResult<{ items: ListItem[]; nextCursor: string | null }>
+    ActionResult<{ items: LibraryListItem[]; nextCursor: string | null }>
   >;
   masterWrong?: (input: { questionId: string }) => Promise<ActionResult<{ ok: true }>>;
+  /**
+   * Practice BATCH read (§5.4, HARD break from the old single-question shape). Ad-hoc `filters` drive
+   * the server query; `cursor` pages forward; `take` bounds the page. Returns key-STRIPPED questions.
+   */
   getQuestionForPractice?: (input: {
     sessionId?: string;
-    filters?: unknown;
+    filters?: PracticeFilterShape;
     cursor?: string;
-  }) => Promise<
-    ActionResult<{ question: unknown; questionMeta: unknown; nextCursor: string | null }>
+    take?: number;
+  }) => Promise<ActionResult<{ questions: unknown[]; nextCursor: string | null }>>;
+  /** Create a practice StudySession (its id groups submits + books studyMs). Currently filters-only. */
+  startPractice?: (input: { filters?: PracticeFilterShape }) => Promise<
+    ActionResult<{ sessionId: string; firstQuestion: unknown; questionMeta: unknown }>
   >;
   startExam?: (input: { bankId?: string; count: number }) => Promise<
     ActionResult<{
@@ -301,7 +344,8 @@ export interface AppActionsBundle {
     remainingSec: number;
   }) => Promise<ActionResult<{ ok: true }>>;
   submitExam?: (input: { sessionId: string }) => Promise<ActionResult<SubmitExamResultLike>>;
-  getExamState?: (input: { sessionId: string }) => Promise<ActionResult<unknown>>;
+  /** No-arg (`{}`) resumes the LATEST ACTIVE exam (or null); with `{sessionId}` loads that session. */
+  getExamState?: (input: { sessionId?: string }) => Promise<ActionResult<ExamStateLike | null>>;
 }
 
 /**
@@ -326,8 +370,23 @@ export interface StatsData {
   streak?: number;
   todayCount?: number;
   byDifficulty?: { difficulty: string; count: number; accuracyPct: number }[];
+  /** Objective accuracy by question TYPE (ASCII enum key), §7.2 — drives the stats 题型表现 bars. */
+  typeMastery?: { type: string; count: number; accuracyPct: number }[];
   categoryMastery?: { category: string; count: number; accuracyPct: number }[];
   weakestCategories?: string[];
+}
+
+/** A category overview row: the first-tag label (tagsFlat[0]) + its published-question count. */
+export interface CategoryOverviewItem {
+  name: string;
+  count: number;
+}
+
+/** A tag facet row for the practice filter chips: slug, display name, published-question count. */
+export interface TagFacet {
+  slug: string;
+  name: string;
+  count: number;
 }
 
 export interface InitialData {
@@ -342,11 +401,20 @@ export interface InitialData {
    * The practice bank. DEMO passes full QuestionRecord[] (local grade). AUTHED passes server-
    * STRIPPED records (PublicQuestion — no answer key / explanation, §5.4), which are a structural
    * subset assignable here. The `serverSubmit` flag (derived from actions.submitAttempt) tells
-   * computeVals which mode it is in, so it never calls grade() on a stripped record.
+   * computeVals which mode it is in, so it never calls grade() on a stripped record. In AUTHED mode
+   * this is only the first-paint batch — the practice loop refetches per the live filters on entry.
    */
   bank?: PracticeQuestion[];
   progress?: Record<string, ProgressLite>;
   examBank?: PracticeQuestion[];
+  /** Authoritative published-question total (questionService.countPublished) — the real 题库总数. */
+  bankTotal?: number;
+  /** Category overview (questionService.categoryOverview) for the home 分类练习进度 cards. */
+  categories?: CategoryOverviewItem[];
+  /** Published-question tag facet (listTags) — the real source for the practice filter chips (§7.3). */
+  tags?: TagFacet[];
+  /** First page of the user's recent practice (libraryService.listRecent) for the home 最近练习 card. */
+  recentItems?: LibraryListItem[];
 }
 
 export type MergeMode = "merge" | "replace";
@@ -368,11 +436,19 @@ export interface AppState {
   entitlement: { tier?: string } | null;
   /** Real stats (§7.2) in authed mode; null in demo mode (→ computeVals uses the demo fallbacks). */
   stats: StatsData | null;
+  /**
+   * The practice queue. DEMO: the full sample bank (filtered + modulo-cycled locally). AUTHED: the
+   * APPEND-ONLY server-filtered queue (seeded from the injected batch, extended by cursor paging).
+   */
   bank: PracticeQuestion[];
   progress: Record<string, ProgressLite>;
+  /** Authoritative published-question total (authed) or null (demo → screens keep their literal). */
+  bankTotal: number | null;
+  /** Category overview + tag facet from the server (authed); empty in demo. */
+  categories: CategoryOverviewItem[];
+  tags: TagFacet[];
   // practice
   pIndex: number;
-  pNoBase: number;
   pAnswers: Record<string, UserAnswer>;
   /**
    * Per-question submit outcome (§5.4). AUTHED: filled from the server submit response (result +
@@ -382,30 +458,56 @@ export interface AppState {
   pReveal: Record<string, PracticeReveal>;
   pFav: Record<string, boolean>;
   pShowAnalysis: boolean;
+  /** Authed practice session (groups submits + books studyMs); `pSessionStarting` guards start-once. */
+  pSessionId: string | null;
+  pSessionStarting: boolean;
+  /** Cursor paging (authed): next-page cursor, exhaustion flag, and an in-flight guard. */
+  pCursor: string | null;
+  pNoMore: boolean;
+  pLoadingBatch: boolean;
+  /** Submits landed THIS session (drives the honest daily-goal progress alongside stats.todayCount). */
+  pAnsweredCount: number;
+  /** Submit robustness (§B): a submit is in flight / the last submit FAILED (inline retry, no reveal). */
+  pSubmitting: boolean;
+  pSubmitError: { code: string; message: string } | null;
   // exam
   examBank: PracticeQuestion[];
   examSessionId: string | null; // set only when a real server exam session is started (3b-2+)
   examAnswers: Record<number, UserAnswer>;
   examRemain: number | null;
+  /** Frozen exam duration (server durationSec, authed); null in demo / before a session exists. */
+  examDurationSec: number | null;
   examIndex: number;
   examMarked: number[];
   examSubmitted: boolean;
+  /** Requested question count for the NEXT exam (authed; usable only before a session exists). */
+  examCount: number;
   /**
-   * Server exam lifecycle (authed mode only; demo leaves these null). `examStarting` guards the
-   * start-once effect; `examStartError` surfaces a start failure (never a fake 0/100); `examServer`
-   * holds the AUTHORITATIVE submit result the result screen renders in authed mode (score/correct/
-   * wrong from the server, per-question reveals for the wrongbook). Demo keeps the local grade path.
+   * Server exam lifecycle (authed mode only; demo leaves these inert). `examStarting`/`examResuming`
+   * guard the start-once / resume-once effect; `examStartError` surfaces a start failure (never a
+   * fake 0/100); `examAutoSubmitted` guards the at-0 auto-submit; `examSubmitError` surfaces a submit
+   * failure (screen offers 重试); `examServer` holds the AUTHORITATIVE submit result. Demo keeps local.
    */
   examStarting: boolean;
+  examResuming: boolean;
   examStartError: boolean;
+  examAutoSubmitted: boolean;
+  examSubmitError: boolean;
   examServer: ExamServerResult | null;
-  // wrongbook
+  // wrongbook / favorites / recent (authed: real server lists; demo: bank∩progress projection)
   wbTab: string;
   wbPage: number;
   wbFav: Record<string, boolean>;
+  /** Authed server-list state: the fetched rows, the paging cursor, load/err flags, loaded-tab guard. */
+  wbItems: LibraryListItem[];
+  wbCursor: string | null;
+  wbLoading: boolean;
+  wbError: boolean;
+  wbLoadedTab: string | null;
+  /** Home 最近练习 card rows (authed: listRecent; seeded from initialData.recentItems). */
+  homeRecent: LibraryListItem[];
   // settings
   setGoal: number;
-  remind: boolean;
   // practice filters (ASCII keys)
   pfTypes: Record<string, boolean>;
   pfDiff: string;
@@ -440,6 +542,12 @@ const INITIAL_PF_TYPES: Record<string, boolean> = {
   essay: true,
 };
 
+// Practice cursor-page size (server clamps to 1..50). Big enough to feel continuous, small enough
+// that a filter change refetches cheaply.
+const PRACTICE_BATCH = 20;
+// DEMO-only exam countdown default (the prototype's local timer; authed uses the server clock).
+const DEMO_EXAM_SEC = 5316;
+
 const INITIAL: AppState = {
   screen: "home",
   user: null,
@@ -447,27 +555,47 @@ const INITIAL: AppState = {
   stats: null,
   bank: [],
   progress: {},
+  bankTotal: null,
+  categories: [],
+  tags: [],
   pIndex: 0,
-  pNoBase: 12,
   pAnswers: {},
   pReveal: {},
   pFav: {},
   pShowAnalysis: false,
+  pSessionId: null,
+  pSessionStarting: false,
+  pCursor: null,
+  pNoMore: false,
+  pLoadingBatch: false,
+  pAnsweredCount: 0,
+  pSubmitting: false,
+  pSubmitError: null,
   examBank: [],
   examSessionId: null,
   examAnswers: {},
   examRemain: null,
+  examDurationSec: null,
   examIndex: 0,
   examMarked: [],
   examSubmitted: false,
+  examCount: 30,
   examStarting: false,
+  examResuming: false,
   examStartError: false,
+  examAutoSubmitted: false,
+  examSubmitError: false,
   examServer: null,
   wbTab: "错题本",
   wbPage: 1,
   wbFav: {},
+  wbItems: [],
+  wbCursor: null,
+  wbLoading: false,
+  wbError: false,
+  wbLoadedTab: null,
+  homeRecent: [],
   setGoal: 30,
-  remind: true,
   pfTypes: { ...INITIAL_PF_TYPES },
   pfDiff: "medium",
   pfTags: {},
@@ -500,6 +628,8 @@ interface Actions {
   pMove(id: string, dir: -1 | 1): void;
   pToggleFav(id: string): void;
   pNext(): void;
+  pPrev(): void;
+  pRestart(): void;
   pToggleAna(): void;
   // exam
   examAnswer(a: UserAnswer): void;
@@ -507,17 +637,24 @@ interface Actions {
   examStep(d: number): void;
   examMark(): void;
   examSubmit(): void;
+  examRetrySubmit(): void;
   examReset(): void;
-  // wrongbook
+  setExamCount(n: number): void;
+  // wrongbook / favorites / recent
   wbSetTab(t: string): void;
   wbGo(n: number): void;
+  wbLoadMore(): void;
   toggleFav(id: string): void;
+  wbMaster(id: string): void;
   // filters (ASCII)
   toggleType(t: QuestionType): void;
   setDiff(d: string): void;
   toggleTag(t: string): void;
   toggleCompany(): void;
   resetFilters(): void;
+  // settings
+  setGoal(n: number): void;
+  updateUserName(name: string): void;
   // qbank
   importPaste(text: string): void;
   importFile(file: File): void;
@@ -735,6 +872,82 @@ function filterBank(bank: PracticeQuestion[], state: AppState): PracticeQuestion
   });
 }
 
+/**
+ * currentPractice — the single source of truth for "which practice question is on screen" (used by
+ * BOTH computeVals and the practice actions so they can never disagree). Dual-mode (§B):
+ *   AUTHED (serverSubmit): the queue is the SERVER-filtered `state.bank`; the pointer is `pIndex`
+ *     directly — NO modulo, NO local re-filter (filters already drove the fetch). Past the end → no q.
+ *   DEMO: the queue is filterBank(bank) and the pointer wraps by modulo, exactly as the prototype did.
+ * Returns the question, the queue length, and the 0-based position within the queue.
+ */
+function currentPractice(
+  state: AppState,
+  serverSubmit: boolean,
+): { q: PracticeQuestion | undefined; queueLen: number; pos: number } {
+  if (serverSubmit) {
+    const queue = state.bank;
+    const q = state.pIndex >= 0 && state.pIndex < queue.length ? queue[state.pIndex] : undefined;
+    return { q, queueLen: queue.length, pos: state.pIndex };
+  }
+  const queue = filterBank(state.bank, state);
+  if (queue.length === 0) return { q: undefined, queueLen: 0, pos: 0 };
+  const pos = ((state.pIndex % queue.length) + queue.length) % queue.length;
+  return { q: queue[pos], queueLen: queue.length, pos };
+}
+
+/**
+ * buildPracticeFilters — map the client filter state (ASCII keys) → the server PracticeFilters shape
+ * (§7.3). Only the SELECTED types are sent; difficulty is sent unless it is "all"; active tag slugs
+ * are sent. pfCompany has NO server support (no bankId/company filter here) so it is intentionally
+ * dropped — it stays a demo-only local filter.
+ */
+function buildPracticeFilters(state: AppState): PracticeFilterShape {
+  const filters: PracticeFilterShape = {};
+  const types = (Object.keys(state.pfTypes) as QuestionType[]).filter((t) => state.pfTypes[t]);
+  if (types.length > 0) filters.types = types;
+  if (state.pfDiff && state.pfDiff !== "all") filters.difficulty = state.pfDiff as Difficulty;
+  const tags = Object.keys(state.pfTags).filter((t) => state.pfTags[t]);
+  if (tags.length > 0) filters.tags = tags;
+  return filters;
+}
+
+/**
+ * mapErrorToMessage — action error `code` → a user-facing Chinese message for the inline submit
+ * error (§B). PAYMENT_REQUIRED keeps the server sub-code (QUOTA_EXCEEDED/…) in the returned message
+ * AND is surfaced via pSubmitError.code so a screen can route it to the <Upsell> paywall component.
+ */
+function mapErrorToMessage(code: string, serverMsg?: string): string {
+  switch (code) {
+    case "RATE_LIMITED":
+      return "操作过于频繁，请稍后再试。";
+    case "VALIDATION":
+      return "答案格式有误，请检查后重试。";
+    case "PAYMENT_REQUIRED":
+      return serverMsg === "QUOTA_EXCEEDED"
+        ? "今日免费额度已用完，升级 Plus 解锁无限刷题。"
+        : "该功能需升级后解锁。";
+    default:
+      return "提交失败，请重试。";
+  }
+}
+
+/** Set a library row's fav flag by id (immutable). */
+function setFavById(items: LibraryListItem[], id: string, fav: boolean): LibraryListItem[] {
+  return items.map((it) => (it.id === id ? { ...it, fav } : it));
+}
+
+/** Flip a library row's fav flag by id (immutable) — the optimistic toggle before the server confirms. */
+function flipFavById(items: LibraryListItem[], id: string): LibraryListItem[] {
+  return items.map((it) => (it.id === id ? { ...it, fav: !it.fav } : it));
+}
+
+/** DEMO tag-facet fallback: aggregate the loaded bank's own tags (by frequency, top 12). */
+function aggregateBankTags(bank: PracticeQuestion[]): string[] {
+  const counts = new Map<string, number>();
+  for (const q of bank) for (const t of q.tags) counts.set(t, (counts.get(t) ?? 0) + 1);
+  return [...counts.entries()].sort((x, y) => y[1] - x[1]).slice(0, 12).map(([t]) => t);
+}
+
 // ---------- chip styling for qbank report rows ----------
 function issueChip(level: "error" | "warning"): CSSProperties {
   const map = { error: { c: "#D63C31", bg: "rgba(240,68,56,.09)" }, warning: { c: "#B7791F", bg: "rgba(247,144,9,.10)" } };
@@ -849,11 +1062,8 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
   // call grade()/correctAnswerText()/buildReveal() on such a record; grading + reveal come only
   // from `submitted` (the server submit response, keyed by question id). serverSubmit === false →
   // demo: the full sample bank is present and we grade locally exactly as before.
-  const filteredBank = filterBank(state.bank, state);
-  const hasQ = filteredBank.length > 0;
-  const q: PracticeQuestion | undefined = hasQ
-    ? filteredBank[((state.pIndex % filteredBank.length) + filteredBank.length) % filteredBank.length]
-    : undefined;
+  const { q, pos } = currentPractice(state, serverSubmit);
+  const hasQ = !!q;
 
   const pAnswer = q ? state.pAnswers[q.id] : undefined;
   const submitted = q ? state.pReveal[q.id] : undefined; // PracticeReveal (result + revealed + attemptId)
@@ -896,7 +1106,17 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
       }
     : undefined;
 
-  const pPct = Math.round(((state.pNoBase + state.pIndex) / 30) * 100);
+  // ---------- honest practice progress (§B — replaces the fake pNoBase 12 / pTotal 30 / pPct math) ----------
+  // pNo is the REAL 1-based position in the loaded queue; pAnsweredCount is this session's submits.
+  // The progress bar tracks the real daily goal: (stats.todayCount snapshot + this-session submits)
+  // over the goal. In demo stats.todayCount is 0, so it reflects the session's own submits vs the goal.
+  const pNo = hasQ ? pos + 1 : 0;
+  const pGoal = state.setGoal || 0;
+  const pLiveToday = (state.stats?.todayCount ?? 0) + state.pAnsweredCount;
+  const pGoalPct = pGoal > 0 ? Math.min(100, Math.round((pLiveToday / pGoal) * 100)) : 0;
+  // Queue exhausted (authed): server signalled no more pages AND we are at the last loaded question.
+  const pExhausted =
+    serverSubmit && state.pNoMore && state.bank.length > 0 && state.pIndex >= state.bank.length - 1;
 
   // ---------- exam ----------
   const idx = state.examIndex;
@@ -913,7 +1133,8 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
       }
     : undefined;
   const examAnsweredCount = Object.keys(state.examAnswers).length;
-  const examTotal = examLen || 30;
+  // REAL total — no fabricated 30 fallback. Empty (loading / start-failed) → 0 (honest).
+  const examTotal = examLen;
 
   // exam summary. Dual-mode (§5.4):
   //   AUTHED (serverSubmit): the exam bank is STRIPPED and grading is SERVER-authoritative. The
@@ -952,16 +1173,52 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
         ? Math.round((examScoreSum / examMaxSum) * 100)
         : 0;
 
-  const bub = (arr: number[]) =>
-    arr
-      .filter((n) => n <= examTotal)
-      .map((n) => ({
-        n,
-        st: bubbleStyle(state, n - 1, state.examAnswers[n - 1] !== undefined),
-        go: () => a.examGo(n - 1),
-      }));
+  // One answer-card bubble for a 1-based question number n (n-1 is the frozen index).
+  const oneBubble = (n: number) => ({
+    n,
+    st: bubbleStyle(state, n - 1, state.examAnswers[n - 1] !== undefined),
+    go: () => a.examGo(n - 1),
+  });
 
-  // ---------- wrongbook / favorites / recent (from bank + progress) ----------
+  // ---------- REAL exam composition (derived from the frozen examBank — replaces the 15/5/5/5 &
+  // 30/50/20% & the [1..15]/[16..20]/… bubble号段 fabrications, §D) ----------
+  // Type distribution [{type,label,count}] and difficulty distribution [{difficulty,label,count}],
+  // both counted off the actual (stripped) exam questions — `type`/`difficulty` survive stripping.
+  const examTypeCount = new Map<string, number>();
+  const examDiffCount = new Map<string, number>();
+  for (const question of examBank) {
+    examTypeCount.set(question.type, (examTypeCount.get(question.type) ?? 0) + 1);
+    examDiffCount.set(question.difficulty, (examDiffCount.get(question.difficulty) ?? 0) + 1);
+  }
+  const examTypeDist = [...examTypeCount.entries()]
+    .map(([type, count]) => ({ type, label: TYPE_LABEL[type as QuestionType] ?? type, count }))
+    .sort((x, y) => y.count - x.count);
+  const examDiffDist = (["easy", "medium", "hard"] as Difficulty[])
+    .filter((d) => examDiffCount.has(d))
+    .map((d) => ({
+      difficulty: d,
+      label: DIFF_LABEL[d],
+      count: examDiffCount.get(d) ?? 0,
+      pct: examTotal > 0 ? Math.round(((examDiffCount.get(d) ?? 0) / examTotal) * 100) : 0,
+    }));
+  // Answer-card grouped by TYPE in the FROZEN order (replaces bubbles1..4's hardcoded号段). Each
+  // group is a contiguous run of same-type questions with real numbers/answered state.
+  const examBubbleGroups: { label: string; type: string; items: ReturnType<typeof oneBubble>[] }[] = [];
+  examBank.forEach((question, i) => {
+    const label = TYPE_LABEL[question.type as QuestionType] ?? question.type;
+    const last = examBubbleGroups[examBubbleGroups.length - 1];
+    if (last && last.type === question.type) last.items.push(oneBubble(i + 1));
+    else examBubbleGroups.push({ label, type: question.type, items: [oneBubble(i + 1)] });
+  });
+  // Real exam duration (server durationSec, authed). "包含大厂真题" only when a question truly has one.
+  const examDurationSec = state.examDurationSec ?? (serverSubmit ? 0 : DEMO_EXAM_SEC);
+  const examHasCompany = examBank.some((question) => !!question.source?.company);
+  const examLoading = state.examStarting || state.examResuming;
+
+  // ---------- wrongbook / favorites / recent ----------
+  // AUTHED: real server lists (state.wbItems, cursor-paged via wbHasMore/wbLoadMore) — NEVER the demo
+  // arrays and NEVER the bank∩progress projection (that projection + the lib/data.ts fallback arrays
+  // stay DEMO-only, so a new authed user with no history sees an honest empty state, not fake rows).
   const prog = state.progress;
   const wrongList: ListItem[] = state.bank
     .filter((qq) => (prog[qq.id]?.wrongCount ?? 0) > 0)
@@ -969,7 +1226,7 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
   const favList: ListItem[] = state.bank
     .filter((qq) => prog[qq.id]?.fav)
     .map((qq) => toListItem(qq, prog[qq.id]));
-  const recentList: ListItem[] = state.bank
+  const demoRecentList: ListItem[] = state.bank
     .filter((qq) => prog[qq.id]?.lastAt)
     .sort((x, y) => (prog[y.id]?.lastAt ?? 0) - (prog[x.id]?.lastAt ?? 0))
     .slice(0, 12)
@@ -981,33 +1238,62 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
       return li;
     });
 
-  // fallback to demo arrays only if bank produced empty projections (keeps screens non-empty)
-  const sourceList =
-    state.wbTab === "收藏夹"
-      ? favList.length
-        ? favList
-        : favItems
-      : state.wbTab === "最近练习"
-        ? recentList.length
-          ? recentList
-          : recentItems
-        : wrongList.length
-          ? wrongList
-          : wrongItems;
+  // The current wrongbook-tab source, unified to (ListItem & {fav}). AUTHED: authoritative server
+  // rows (fav is joined server-side). DEMO: projection (+ demo-array fallback only when empty), with
+  // fav from the optimistic local wbFav map.
+  const wbSource: (ListItem & { fav: boolean })[] = serverSubmit
+    ? state.wbItems
+    : (state.wbTab === "收藏夹"
+        ? favList.length
+          ? favList
+          : favItems
+        : state.wbTab === "最近练习"
+          ? demoRecentList.length
+            ? demoRecentList
+            : recentItems
+          : wrongList.length
+            ? wrongList
+            : wrongItems
+      ).map((it) => ({ ...it, fav: !!state.wbFav[it.id] }));
 
-  const wbList = sourceList.map((it) => ({
+  const wbList = wbSource.map((it) => ({
     ...it,
     diffS: diffStyle(it.diff),
     diffChip: diffChip(it.diff),
     typeChip: typeChipStyle(),
-    fav: !!state.wbFav[it.id],
-    favInv: !state.wbFav[it.id],
+    fav: it.fav,
+    favInv: !it.fav,
     onFav: () => a.toggleFav(it.id),
+    // 「标记已掌握」— wrongbook tab only (masterWrong removes the row). No by-id 重做 backend exists,
+    // so nothing is exposed for a 重做 button (screens drop it).
+    onMaster: () => a.wbMaster(it.id),
+    canMaster: state.wbTab === "错题本",
     meta:
       state.wbTab === "错题本"
         ? "错误 " + it.wrong + " 次 · 上次错误 " + it.last
         : it.last,
   }));
+  const wbEmpty = wbList.length === 0;
+
+  // Home 最近练习 card (top-level recentList val, §E). AUTHED: real listRecent rows. DEMO: the
+  // bank∩progress projection (demo-array fallback keeps /demo non-empty).
+  const recentSource: (ListItem & { fav?: boolean })[] = serverSubmit
+    ? state.homeRecent
+    : demoRecentList.length
+      ? demoRecentList
+      : recentItems;
+  const recentList = recentSource.slice(0, 6).map((it) => ({
+    id: it.id,
+    type: it.type,
+    diff: it.diff,
+    q: it.q,
+    tags: it.tags,
+    last: it.last,
+    diffChip: diffChip(it.diff),
+    typeChip: typeChipStyle(),
+  }));
+  const recentEmpty = recentSource.length === 0;
+
   const wbTabGo = (t: string) => () => a.wbSetTab(t);
   const pgBase: CSSProperties = {
     minWidth: "34px",
@@ -1021,15 +1307,18 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
     cursor: "pointer",
     transition: "all .1s",
   };
-  const pages = [1, 2, 3, 4, 5].map((n) => ({
-    n,
-    active: state.wbPage === n,
-    go: () => a.wbGo(n),
-    style:
-      state.wbPage === n
-        ? { ...pgBase, background: "var(--pri)", color: "#fff", border: "1px solid var(--pri)", fontWeight: 700 }
-        : { ...pgBase, background: "var(--surface)", color: "var(--ink2)", border: "1px solid var(--line)", fontWeight: 600 },
-  }));
+  // AUTHED uses cursor paging (wbHasMore/wbLoadMore) — the fixed [1..5] page buttons are DEMO-only.
+  const pages = serverSubmit
+    ? []
+    : [1, 2, 3, 4, 5].map((n) => ({
+        n,
+        active: state.wbPage === n,
+        go: () => a.wbGo(n),
+        style:
+          state.wbPage === n
+            ? { ...pgBase, background: "var(--pri)", color: "#fff", border: "1px solid var(--pri)", fontWeight: 700 }
+            : { ...pgBase, background: "var(--surface)", color: "var(--ink2)", border: "1px solid var(--line)", fontWeight: 600 },
+      }));
 
   // ---------- qbank screen derivations ----------
   const report = state.qbankReport;
@@ -1112,10 +1401,48 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
 
   const statWeakest = st?.weakestCategories ?? [];
 
+  // Objective accuracy BY QUESTION TYPE (real typeMastery, §7.2) → the stats-screen 题型表现 bars
+  // (replaces the hardcoded 单选82/多选68/…). ASCII type → Chinese via TYPE_LABEL.
+  const statTypeBars = (st?.typeMastery ?? []).map((t) => ({
+    label: TYPE_LABEL[t.type as QuestionType] ?? t.type,
+    pct: t.accuracyPct,
+    count: t.count,
+    barStyle: css({
+      width: `${t.accuracyPct}%`,
+      height: "100%",
+      background: "var(--pri)",
+      borderRadius: "6px",
+      transformOrigin: "left center",
+      animation: "boGrowX .9s cubic-bezier(.22,.61,.36,1) both",
+    }),
+  }));
+
+  // Home 分类练习进度 cards: the real category overview (published counts) LEFT-JOINed with this
+  // user's category mastery (accuracyPct). accuracyPct is null when the user has no attempts in that
+  // category yet (screen shows count without a fake % ). Empty in demo → screen keeps its literals.
+  const masteryByCategory = new Map((st?.categoryMastery ?? []).map((c) => [c.category, c.accuracyPct]));
+  const categoryCards = state.categories.map((c) => ({
+    name: c.name,
+    count: c.count,
+    accuracyPct: masteryByCategory.has(c.name) ? (masteryByCategory.get(c.name) as number) : null,
+  }));
+
+  // Honest 较昨日 deltas from the last two accuracyTrend days (null when unknowable → the screen
+  // hides the 较昨日 line rather than fabricate a green +X). NEVER invented.
+  const trendDays = st?.accuracyTrend ?? [];
+  const lastDay = trendDays.length > 0 ? trendDays[trendDays.length - 1] : undefined;
+  const prevDay = trendDays.length > 1 ? trendDays[trendDays.length - 2] : undefined;
+  const statTodayDeltaAttempts = lastDay && prevDay ? lastDay.attempts - prevDay.attempts : null;
+  const statAccuracyDelta = lastDay && prevDay ? lastDay.accuracyPct - prevDay.accuracyPct : null;
+
   return {
     // ---- 3b-2 passthrough: real identity for the settings/header (no derivation change) ----
     user: state.user,
     entitlement: state.entitlement,
+    // AUTHED discriminator (= serverSubmit). Screens branch on this to render honest empty states in
+    // authed mode vs the intentional /demo literals in demo mode.
+    authed: serverSubmit,
+    updateUserName: a.updateUserName,
 
     showArt: state.showArt,
     nav,
@@ -1197,16 +1524,31 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
     pFieldProps,
     pGrade: pShownGrade,
     pIsMulti: q?.type === "multiple_choice",
-    pNo: state.pNoBase + state.pIndex,
-    pTotal: 30,
-    pProgress: pPct + "%",
+    // Honest progress (§B). pNo = real 1-based position; pTotal / pProgress / pBarStyle now track the
+    // real DAILY GOAL (setGoal) instead of the fabricated /30. New vals below expose the richer split
+    // (pAnsweredCount / pGoal / pGoalPct / pExhausted) for the screens stage.
+    pNo,
+    pTotal: pGoal,
+    pProgress: pGoalPct + "%",
     pBarStyle: css({
-      width: pPct + "%",
+      width: pGoalPct + "%",
       height: "100%",
       background: "var(--pri)",
       borderRadius: "6px",
       transition: "width .3s",
     }),
+    pAnsweredCount: state.pAnsweredCount,
+    pGoal,
+    pGoalPct,
+    // Queue lifecycle: pExhausted → offer 「重新开始/调整筛选」; pRestart resets cursor+index+queue.
+    pExhausted,
+    pLoading: state.pLoadingBatch,
+    pRestart: a.pRestart,
+    pPrev: a.pPrev,
+    // Submit robustness: an in-flight flag + an inline error {code,message}. On PAYMENT_REQUIRED the
+    // screen routes pSubmitError.code to <Upsell>; other codes render an inline retry.
+    pSubmitting: state.pSubmitting,
+    pSubmitError: state.pSubmitError,
     pFav: q ? !!state.pFav[q.id] : false,
     pFavInv: q ? !state.pFav[q.id] : true,
     pShowAna: state.pShowAnalysis,
@@ -1257,12 +1599,21 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
         }),
       };
     }),
-    pfTagList: ["作用域", "闭包", "原型链", "事件循环", "异步", "CSS", "HTTP"].map((t) => {
-      const on = !!state.pfTags[t];
+    // Real tag facet (§7.3): AUTHED → initialData.tags (slug filter key + display name); DEMO →
+    // aggregated from the loaded sample bank. `k` is the display label; `go` toggles by filter KEY
+    // (slug in authed, tag text in demo) so buildPracticeFilters/filterBank match the real taxonomy.
+    pfTagList: (
+      state.tags.length > 0
+        ? state.tags.map((t) => ({ label: t.name, key: t.slug }))
+        : serverSubmit
+          ? []
+          : aggregateBankTags(state.bank).map((t) => ({ label: t, key: t }))
+    ).map(({ label, key }) => {
+      const on = !!state.pfTags[key];
       return {
-        k: t,
+        k: label,
         on,
-        go: () => a.toggleTag(t),
+        go: () => a.toggleTag(key),
         style: css({
           fontSize: "12.5px",
           fontWeight: 500,
@@ -1290,10 +1641,23 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
     resetFiltersDo: () => a.resetFilters(),
 
     // exam
-    examTime: fmtTime(state.examRemain == null ? 5316 : state.examRemain),
+    // Server remainingSec is the baseline; before it lands we show the real durationSec (authed) or
+    // the demo local-timer default — NEVER the old fabricated 5316 for an authed session.
+    examTime: fmtTime(state.examRemain ?? examDurationSec),
     examLow: state.examRemain != null && state.examRemain < 600,
     examNo: idx + 1,
     examTotal,
+    examDurationSec,
+    examLoading,
+    examCount: state.examCount,
+    examCanSetCount: !state.examSessionId,
+    examSetCount: (n: number) => a.setExamCount(n),
+    // Real composition (from the frozen examBank) — replaces the setup-panel 15/5/5/5 & 30/50/20%.
+    examTypeDist,
+    examDiffDist,
+    examHasCompany,
+    // Single real answer-card, grouped by type in frozen order (replaces bubbles1..4's hardcoded号段).
+    examBubbleGroups,
     examHasQ: examLen > 0,
     examQ: eq
       ? { id: eq.id, type: TYPE_LABEL[eq.type], q: stem(eq), diff: DIFF_LABEL[eq.difficulty] }
@@ -1317,11 +1681,18 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
     // submit while the authoritative grade is still resolving (or failed) — the screen can withhold
     // the score badge rather than flash a misleading 0.
     examStartError: state.examStartError,
-    examServerPending: serverSubmit && state.examSubmitted && state.examServer === null,
-    bubbles1: bub([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]),
-    bubbles2: bub([16, 17, 18, 19, 20]),
-    bubbles3: bub([21, 22, 23, 24, 25]),
-    bubbles4: bub([26, 27, 28, 29, 30]),
+    // Submit failure (authed): keep examServer null, expose examSubmitError so the screen offers 重试.
+    // Pending is withheld while an error is showing (so it never flashes 「评分中…」 over a failure).
+    examSubmitError: state.examSubmitError,
+    examServerPending:
+      serverSubmit && state.examSubmitted && state.examServer === null && !state.examSubmitError,
+    examRetryDo: a.examRetrySubmit,
+    // DEPRECATED (kept for the un-migrated exam.tsx to typecheck): bubbles1 now holds the FULL real
+    // answer card; bubbles2..4 are empty. Screens should switch to examBubbleGroups and drop these.
+    bubbles1: examBank.map((_q, i) => oneBubble(i + 1)),
+    bubbles2: [] as ReturnType<typeof oneBubble>[],
+    bubbles3: [] as ReturnType<typeof oneBubble>[],
+    bubbles4: [] as ReturnType<typeof oneBubble>[],
     examMark: a.examMark,
     examPrev: () => a.examStep(-1),
     examNext: () => a.examStep(1),
@@ -1333,6 +1704,12 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
     wbList,
     wbPage: state.wbPage,
     pages,
+    // Cursor paging (authed) — replaces the fake [1..5] pages. wbHasMore gates a 「加载更多」 button.
+    wbHasMore: serverSubmit ? !!state.wbCursor : false,
+    wbLoadMore: a.wbLoadMore,
+    wbLoading: state.wbLoading,
+    wbError: state.wbError,
+    wbEmpty,
     wbGo错题本: wbTabGo("错题本"),
     wbGo收藏夹: wbTabGo("收藏夹"),
     wbGo最近: wbTabGo("最近练习"),
@@ -1361,7 +1738,9 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
     qbankExport: a.exportBank,
     qbankDownloadSample: a.downloadSample,
     qbankDownloadSchema: a.downloadSchema,
-    qbankBankCount: state.bank.length,
+    // AUTHED: the authoritative published total (countPublished); DEMO: the in-memory sample count
+    // (meaningful for the demo import feature, which grows this bank).
+    qbankBankCount: serverSubmit ? (state.bankTotal ?? 0) : state.bank.length,
     qbankNotice: state.qbankNotice,
 
     // ---------- real stats (§7.2): home KPIs + stats screen + sidebar streak ----------
@@ -1383,6 +1762,23 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
     statCategoryBars,
     statDifficultyBars,
     statWeakest,
+    // Objective accuracy by question TYPE (real) → stats-screen 题型表现 bars.
+    statTypeBars,
+    // Honest 较昨日 deltas (null when unknowable → screens hide the line).
+    statTodayDeltaAttempts,
+    statAccuracyDelta,
+
+    // ---------- home (§E): real 题库总数 / 分类卡 / 最近练习 ----------
+    // Authoritative published total (null in demo → screen keeps its literal). Also drives qbank.
+    bankTotal: state.bankTotal,
+    categoryCards,
+    recentList,
+    recentEmpty,
+
+    // ---------- settings (§F): real daily-goal stepper + profile name setter ----------
+    goalValue: state.setGoal,
+    goalInc: () => a.setGoal(state.setGoal + 5),
+    goalDec: () => a.setGoal(state.setGoal - 5),
   };
 }
 
@@ -1444,10 +1840,16 @@ export function AppProvider({
   actions?: AppActionsBundle;
 }) {
   const [state, setState] = useState<AppState>(() => {
-    // Fallback: no bank injected → the built-in 13-type sample envelope (standalone mode).
-    const bank = initialData?.bank ?? sampleEnvelope.questions;
-    const examBank = initialData?.examBank ?? bank;
-    const progress = initialData?.progress ?? synthProgress(bank);
+    // AUTHED iff a submit action is wired. In authed mode NOTHING is fabricated: no sample bank, no
+    // synthProgress, and an EMPTY exam bank (the server exam flow fills it — no ghost exam). DEMO
+    // keeps the built-in sample envelope + synthProgress + local grading, exactly as the prototype.
+    const authedInit = !!serverActions?.submitAttempt;
+    const bank = initialData?.bank ?? (authedInit ? [] : sampleEnvelope.questions);
+    const examBank = authedInit ? [] : initialData?.examBank ?? bank;
+    const progress = initialData?.progress ?? (authedInit ? {} : synthProgress(bank));
+    // Seed the fav state from the injected progress so stars are correct on first paint (§C fav回填).
+    const pFav: Record<string, boolean> = {};
+    for (const [id, p] of Object.entries(progress)) if (p?.fav) pFav[id] = true;
     return {
       ...INITIAL,
       user: initialData?.user ?? null,
@@ -1456,16 +1858,26 @@ export function AppProvider({
       bank,
       examBank,
       progress,
+      pFav,
+      bankTotal: initialData?.bankTotal ?? null,
+      categories: initialData?.categories ?? [],
+      tags: initialData?.tags ?? [],
+      homeRecent: initialData?.recentItems ?? [],
+      // AUTHED default: "all" difficulties (the entry reset-fetch spans the whole published bank);
+      // DEMO keeps "medium" so /demo is byte-for-byte unchanged.
+      pfDiff: authedInit ? "all" : "medium",
     };
   });
   const stateRef = useRef(state);
   stateRef.current = state;
-  // Server-side practice cursor (advanced by pNext when the getQuestionForPractice action is wired).
-  const practiceCursorRef = useRef<string | null>(null);
+  // Latest actions (assigned just after the actions useMemo) so timer/keyboard effects call fresh
+  // handlers without stale closures.
+  const actionsRef = useRef<Actions | null>(null);
+  // When the current practice question became visible → the real durationMs at submit (studyMs fix).
+  const questionStartRef = useRef<number>(Date.now());
 
-  // AUTHED mode iff a real submit Server Action is wired. Drives the §5.4 dual-mode grading: when
-  // true the practice bank is STRIPPED, so computeVals/pSubmit source grade + reveal from the
-  // server response and NEVER call grade() on a bank record. Demo (no action) → false → local grade.
+  // AUTHED mode iff a real submit Server Action is wired. Drives §5.4 dual-mode grading AND the whole
+  // server-fetch / queue-paging machinery below (demo short-circuits every server effect).
   const serverSubmit = !!serverActions?.submitAttempt;
 
   const patch = useCallback(
@@ -1475,32 +1887,32 @@ export function AppProvider({
   );
 
   // Local (standalone/demo) grade — used only when NO server submit is wired. The demo bank carries
-  // answer keys, so grading + reveal are fully functional offline. Never runs in authed mode.
+  // answer keys, so grading + reveal are fully functional offline. Always resolves ok:true.
   const localSubmit = useCallback<SubmitAttemptFn>(async (questionId, userAnswer) => {
     const rec = stateRef.current.bank.find((x) => x.id === questionId);
-    if (!rec) return { result: grade({} as QuestionRecord, userAnswer) };
+    if (!rec) return { ok: true, result: grade({} as QuestionRecord, userAnswer) };
     const result = grade(rec as QuestionRecord, userAnswer);
-    return { result, revealed: buildReveal(rec as QuestionRecord) };
+    return { ok: true, result, revealed: buildReveal(rec as QuestionRecord) };
   }, []);
 
-  // Default submit resolution order (§8.1): explicit onSubmitAttempt DI hook →
-  // actions.submitAttempt (server-authoritative) → local grade (demo only). computeVals is unaware
-  // of this indirection. CRITICAL (§5.4): in the authed path the bank is STRIPPED — on a server
-  // failure we must NOT local-grade the stripped record (its keys are gone → wrong result). We
-  // instead surface a neutral unanswered result so the UI never dead-ends AND never fabricates a
-  // grade from missing keys. Local grade is reserved for the true demo path (no action wired).
+  // Submit resolution (§8.1): explicit onSubmitAttempt DI hook → actions.submitAttempt (server-
+  // authoritative) → local grade (demo). §B robustness: a server failure returns a DISCRIMINATED
+  // {ok:false,error}; we NEVER fabricate a graded/ungraded reveal from a STRIPPED record. pSubmit
+  // then withholds pReveal and surfaces pSubmitError. Carries sessionId + measured durationMs.
   const submitFn = useMemo<SubmitAttemptFn>(() => {
     if (onSubmitAttempt) return onSubmitAttempt;
     const serverSubmitAction = serverActions?.submitAttempt;
     if (serverSubmitAction) {
-      return async (questionId, userAnswer) => {
+      return async (questionId, userAnswer, opts) => {
         try {
-          const res = await serverSubmitAction({ questionId, userAnswer });
+          const res = await serverSubmitAction({
+            questionId,
+            userAnswer,
+            ...(opts?.sessionId ? { sessionId: opts.sessionId } : {}),
+            ...(opts?.durationMs != null ? { durationMs: opts.durationMs } : {}),
+          });
           if (res.ok) {
-            // Adapt the server's RAW-field reveal → the client's FRIENDLY AnswerReveal, keyed by the
-            // question's type (the stripped bank record still carries `type`). A blind cast here was
-            // a runtime lie: multiple_choice/true_false/numeric read friendly fields the raw payload
-            // never had, so their correct-answer displayed blank post-submit.
+            // Adapt the server RAW-field reveal → the client FRIENDLY AnswerReveal keyed by q.type.
             const rec = stateRef.current.bank.find((x) => x.id === questionId);
             const qType = rec?.type;
             const partTypes =
@@ -1508,80 +1920,403 @@ export function AppProvider({
                 ? Object.fromEntries((rec as ScenarioQ).parts.map((p) => [p.id, p.type]))
                 : undefined;
             return {
+              ok: true,
               result: res.data.result,
               revealed: adaptServerReveal(res.data.revealed, qType, partTypes),
               attemptId: res.data.attemptId,
             };
           }
+          return { ok: false, error: res.error };
         } catch {
-          /* fall through to the neutral result below — do NOT local-grade a stripped record */
+          // Network/unknown failure → generic error; NEVER local-grade a stripped record.
+          return { ok: false, error: { code: "INTERNAL" } };
         }
-        return { result: UNANSWERED_RESULT };
       };
     }
     return localSubmit;
   }, [onSubmitAttempt, serverActions, localSubmit]);
 
-  // AUTHED exam start (blocker #2). When the user opens 模拟面试 in authed mode we start ONE server
-  // exam session (startExam), store its id + the returned STRIPPED questions as the exam bank, and
-  // seed the server-authoritative countdown. Guarded so it fires exactly once per session: the
-  // `examStarting` flag + `examSessionId` guard prevent a re-start on every render, and examReset
-  // clears both so "再考一次" starts a fresh session. Demo mode (no startExam action) skips this
-  // entirely and keeps the local sample examBank + local grade. Failure degrades gracefully
-  // (examStartError) — never a crash, never a fake exam.
-  useEffect(() => {
-    const startExam = serverActions?.startExam;
-    if (!startExam) return; // demo mode → keep the local injected examBank
-    const st = stateRef.current;
-    if (st.screen !== "interview") return;
-    if (st.examSessionId || st.examStarting || st.examSubmitted) return; // start once
+  // ---------- practice: server-driven queue (§B) ----------
+  // Fetch a batch with the CURRENT filters. reset:true replaces the queue from scratch (cursor null,
+  // pIndex 0, drop reveals); reset:false APPENDS the next cursor page (dedup by id). migrate() each
+  // question through the version chain (a no-op passthrough for current-version stripped records).
+  const loadPracticeBatch = useCallback(
+    (opts: { reset: boolean }) => {
+      const getQ = serverActions?.getQuestionForPractice;
+      if (!getQ) return;
+      const s = stateRef.current;
+      if (s.pLoadingBatch) return;
+      const cursor = opts.reset ? undefined : s.pCursor ?? undefined;
+      if (!opts.reset && (s.pNoMore || !cursor)) return;
+      const filters = buildPracticeFilters(s);
+      setState((p) => ({ ...p, pLoadingBatch: true, ...(opts.reset ? { pSubmitError: null } : {}) }));
+      getQ({ filters, ...(cursor ? { cursor } : {}), take: PRACTICE_BATCH })
+        .then((r) => {
+          if (!r.ok) {
+            setState((p) => ({ ...p, pLoadingBatch: false }));
+            return;
+          }
+          const migrated = r.data.questions.map((qq) => migrate(qq) as PracticeQuestion);
+          setState((p) => {
+            if (opts.reset) {
+              return {
+                ...p,
+                bank: migrated,
+                pCursor: r.data.nextCursor,
+                pNoMore: r.data.nextCursor === null,
+                pIndex: 0,
+                pReveal: {},
+                pShowAnalysis: false,
+                pLoadingBatch: false,
+              };
+            }
+            const seen = new Set(p.bank.map((x) => x.id));
+            const add = migrated.filter((qq) => !seen.has(qq.id));
+            return {
+              ...p,
+              bank: [...p.bank, ...add],
+              pCursor: r.data.nextCursor,
+              // A page that added nothing new (all dupes) with no cursor → treat as exhausted.
+              pNoMore: r.data.nextCursor === null,
+              pLoadingBatch: false,
+            };
+          });
+        })
+        .catch(() => setState((p) => ({ ...p, pLoadingBatch: false })));
+    },
+    [serverActions],
+  );
 
-    setState((s) => ({ ...s, examStarting: true, examStartError: false }));
-    startExam({ count: 30 })
+  // ---------- wrongbook / favorites / recent: server lists (§C) ----------
+  const wbLoad = useCallback(
+    (tab: string, opts: { reset: boolean }) => {
+      if (!serverSubmit) return;
+      const s = stateRef.current;
+      if (s.wbLoading) return;
+      const cursor = opts.reset ? undefined : s.wbCursor ?? undefined;
+      if (!opts.reset && !cursor) return;
+      let req:
+        | Promise<ActionResult<{ items: LibraryListItem[]; nextCursor: string | null }>>
+        | undefined;
+      const arg = cursor ? { cursor } : {};
+      if (tab === "收藏夹" && serverActions?.listFavorites) req = serverActions.listFavorites(arg);
+      else if (tab === "最近练习" && serverActions?.listRecent) req = serverActions.listRecent(arg);
+      else if (serverActions?.listWrongbook) req = serverActions.listWrongbook(arg);
+      if (!req) return;
+      setState((p) => ({
+        ...p,
+        wbLoading: true,
+        wbError: false,
+        ...(opts.reset ? { wbItems: [], wbCursor: null } : {}),
+      }));
+      req
+        .then((r) => {
+          if (r.ok) {
+            setState((p) => ({
+              ...p,
+              wbLoading: false,
+              wbLoadedTab: tab,
+              wbItems: opts.reset ? r.data.items : [...p.wbItems, ...r.data.items],
+              wbCursor: r.data.nextCursor,
+            }));
+          } else {
+            setState((p) => ({ ...p, wbLoading: false, wbError: true }));
+          }
+        })
+        .catch(() => setState((p) => ({ ...p, wbLoading: false, wbError: true })));
+    },
+    [serverActions, serverSubmit],
+  );
+
+  const homeRecentLoad = useCallback(() => {
+    const act = serverActions?.listRecent;
+    if (!act) return;
+    act({})
+      .then((r) => {
+        if (r.ok) setState((p) => ({ ...p, homeRecent: r.data.items }));
+      })
+      .catch(() => undefined);
+  }, [serverActions]);
+
+  // ---------- exam: server session (§D) ----------
+  const doStartExam = useCallback(() => {
+    const startExam = serverActions?.startExam;
+    if (!startExam) return;
+    setState((p) => ({ ...p, examStarting: true, examStartError: false }));
+    startExam({ count: stateRef.current.examCount })
       .then((r) => {
         if (r.ok) {
-          setState((s) => ({
-            ...s,
-            examSessionId: r.data.sessionId,
-            // Server-stripped questions become the exam bank (structurally a PublicQuestion[]).
-            examBank: (r.data.questions as PracticeQuestion[]) ?? s.examBank,
-            examRemain: r.data.remainingSec ?? r.data.durationSec ?? s.examRemain,
+          const migrated = r.data.questions.map((qq) => migrate(qq) as PracticeQuestion);
+          setState((p) => ({
+            ...p,
             examStarting: false,
             examStartError: false,
+            examSessionId: r.data.sessionId,
+            examBank: migrated,
+            examRemain: r.data.remainingSec ?? r.data.durationSec,
+            examDurationSec: r.data.durationSec,
+            examIndex: 0,
+            examAnswers: {},
+            examMarked: [],
+            examSubmitted: false,
+            examServer: null,
+            examSubmitError: false,
+            examAutoSubmitted: false,
           }));
-          try {
-            localStorage.setItem("fe_exam_remain", String(r.data.remainingSec ?? r.data.durationSec ?? 0));
-          } catch {}
         } else {
-          setState((s) => ({ ...s, examStarting: false, examStartError: true }));
+          setState((p) => ({ ...p, examStarting: false, examStartError: true }));
         }
       })
-      .catch(() => setState((s) => ({ ...s, examStarting: false, examStartError: true })));
-    // Re-check when the screen changes or after a reset (examSessionId/examSubmitted flip).
-  }, [state.screen, state.examSessionId, state.examStarting, state.examSubmitted, serverActions]);
+      .catch(() => setState((p) => ({ ...p, examStarting: false, examStartError: true })));
+  }, [serverActions]);
 
-  // exam countdown timer (ports the original interval + localStorage persistence).
+  // submitExam → adapt the authoritative whole-exam grade into examServer (§D). On failure keep
+  // examServer null + flag examSubmitError so the result screen offers 重试 (examRetrySubmit reuses this).
+  const runSubmitExam = useCallback(
+    (sid: string) => {
+      const submitAct = serverActions?.submitExam;
+      if (!submitAct) return;
+      submitAct({ sessionId: sid })
+        .then((r) => {
+          if (r.ok) {
+            const typeById = (qid: string) => stateRef.current.examBank.find((x) => x.id === qid)?.type;
+            const partTypesById = (qid: string) => {
+              const rec = stateRef.current.examBank.find((x) => x.id === qid);
+              return rec?.type === "scenario"
+                ? Object.fromEntries((rec as ScenarioQ).parts.map((p) => [p.id, p.type]))
+                : undefined;
+            };
+            const adapted = adaptExamSubmit(r.data, typeById, partTypesById);
+            setState((prev) => ({ ...prev, examServer: adapted, examSubmitError: false }));
+          } else {
+            setState((prev) => ({ ...prev, examSubmitError: true }));
+          }
+        })
+        .catch(() => setState((prev) => ({ ...prev, examSubmitError: true })));
+    },
+    [serverActions],
+  );
+
+  // Hydrate the persisted daily goal (§F: no server pref exists → localStorage) on mount.
   useEffect(() => {
-    let r = 5316;
     try {
-      const s = localStorage.getItem("fe_exam_remain");
-      if (s != null) r = Math.max(0, parseInt(s, 10) || 0);
+      const v = localStorage.getItem("bo_daily_goal");
+      if (v != null) {
+        const n = parseInt(v, 10);
+        if (Number.isFinite(n) && n > 0) setState((p) => ({ ...p, setGoal: n }));
+      }
+    } catch {}
+  }, []);
+
+  // DEMO exam: seed the local countdown from localStorage (authed seeds from the server session).
+  useEffect(() => {
+    if (serverSubmit) return;
+    let r = DEMO_EXAM_SEC;
+    try {
+      const v = localStorage.getItem("fe_exam_remain");
+      if (v != null) r = Math.max(0, parseInt(v, 10) || 0);
     } catch {}
     setState((st) => ({ ...st, examRemain: r }));
+  }, [serverSubmit]);
+
+  // Reset the per-question timer whenever the current practice question changes (or on entry) so the
+  // measured durationMs reflects only the time THIS question was on screen (§B studyMs fix).
+  const curPracticeId = currentPractice(state, serverSubmit).q?.id;
+  useEffect(() => {
+    questionStartRef.current = Date.now();
+  }, [curPracticeId, state.screen]);
+
+  // Start ONE practice StudySession on entry (authed) — its id groups submits + books studyMs.
+  useEffect(() => {
+    if (!serverSubmit) return;
+    const startP = serverActions?.startPractice;
+    if (!startP) return;
+    if (state.screen !== "practice") return;
+    if (state.pSessionId || state.pSessionStarting) return;
+    setState((p) => ({ ...p, pSessionStarting: true }));
+    startP({ filters: buildPracticeFilters(stateRef.current) })
+      .then((r) =>
+        setState((p) => ({
+          ...p,
+          pSessionStarting: false,
+          pSessionId: r.ok ? r.data.sessionId : p.pSessionId,
+        })),
+      )
+      .catch(() => setState((p) => ({ ...p, pSessionStarting: false })));
+  }, [serverSubmit, serverActions, state.screen, state.pSessionId, state.pSessionStarting]);
+
+  // Refetch the practice queue from scratch on entry AND on any filter change (§B: filters drive the
+  // server). The injected batch is only a first paint; this makes the queue match the live filters.
+  useEffect(() => {
+    if (!serverSubmit) return;
+    if (state.screen !== "practice") return;
+    loadPracticeBatch({ reset: true });
+  }, [serverSubmit, state.screen, state.pfTypes, state.pfDiff, state.pfTags, loadPracticeBatch]);
+
+  // Prefetch the next cursor page as the user approaches the end of the loaded queue (§B).
+  useEffect(() => {
+    if (!serverSubmit) return;
+    if (state.screen !== "practice") return;
+    if (state.pLoadingBatch || state.pNoMore || !state.pCursor) return;
+    if (state.pIndex >= state.bank.length - 2) loadPracticeBatch({ reset: false });
+  }, [
+    serverSubmit,
+    state.screen,
+    state.pIndex,
+    state.bank.length,
+    state.pLoadingBatch,
+    state.pNoMore,
+    state.pCursor,
+    loadPracticeBatch,
+  ]);
+
+  // On entering 模拟面试 (authed) FIRST resume the latest ACTIVE exam (getExamState no-arg) — a refresh
+  // restores the SAME session/questions/answers/clock. Only when there is none do we start a fresh
+  // exam. Guarded to fire once per session. Demo keeps the local sample exam + local grade.
+  useEffect(() => {
+    if (!serverSubmit) return;
+    if (state.screen !== "interview") return;
+    if (state.examSessionId || state.examStarting || state.examResuming || state.examSubmitted) return;
+    const getStateAct = serverActions?.getExamState;
+    if (!getStateAct) {
+      doStartExam();
+      return;
+    }
+    setState((p) => ({ ...p, examResuming: true, examStartError: false }));
+    getStateAct({})
+      .then((r) => {
+        if (r.ok && r.data && r.data.status === "active") {
+          const data = r.data;
+          const migrated = data.questions.map((qq) => migrate(qq) as PracticeQuestion);
+          // Rebuild the index-keyed answer sheet from the server's questionId-keyed answers, in the
+          // FROZEN question order.
+          const answersByIdx: Record<number, UserAnswer> = {};
+          migrated.forEach((qq, i) => {
+            const saved = data.answers[qq.id];
+            if (saved) answersByIdx[i] = saved;
+          });
+          setState((p) => ({
+            ...p,
+            examResuming: false,
+            examSessionId: data.sessionId,
+            examBank: migrated,
+            examAnswers: answersByIdx,
+            examRemain: data.remainingSec,
+            examDurationSec: data.durationSec,
+            examIndex: 0,
+            examMarked: [],
+            examSubmitted: false,
+            examServer: null,
+            examSubmitError: false,
+            examAutoSubmitted: false,
+          }));
+        } else {
+          setState((p) => ({ ...p, examResuming: false }));
+          doStartExam();
+        }
+      })
+      .catch(() => {
+        setState((p) => ({ ...p, examResuming: false }));
+        doStartExam();
+      });
+  }, [
+    serverSubmit,
+    serverActions,
+    state.screen,
+    state.examSessionId,
+    state.examStarting,
+    state.examResuming,
+    state.examSubmitted,
+    doStartExam,
+  ]);
+
+  // Countdown. AUTHED: server remainingSec is the baseline; ticks locally; at 0 with a live session →
+  // AUTO-SUBMIT exactly once (examAutoSubmitted guard). DEMO: the local timer persisted to
+  // localStorage exactly as the prototype (never auto-submits).
+  useEffect(() => {
     const timer = setInterval(() => {
-      const st = stateRef.current;
-      if (st.screen === "interview" && !st.examSubmitted) {
-        setState((s) => {
-          const nr = Math.max(0, (s.examRemain == null ? 5316 : s.examRemain) - 1);
-          try {
-            localStorage.setItem("fe_exam_remain", String(nr));
-          } catch {}
-          return { ...s, examRemain: nr };
-        });
+      const s = stateRef.current;
+      if (s.screen !== "interview" || s.examSubmitted) return;
+      if (serverSubmit) {
+        if (s.examRemain == null) return; // not yet seeded from the server
+        const nr = Math.max(0, s.examRemain - 1);
+        setState((p) => ({ ...p, examRemain: nr }));
+        if (nr === 0 && s.examSessionId && !s.examAutoSubmitted) {
+          setState((p) => ({ ...p, examAutoSubmitted: true }));
+          actionsRef.current?.examSubmit();
+        }
+      } else {
+        const nr = Math.max(0, (s.examRemain == null ? DEMO_EXAM_SEC : s.examRemain) - 1);
+        try {
+          localStorage.setItem("fe_exam_remain", String(nr));
+        } catch {}
+        setState((p) => ({ ...p, examRemain: nr }));
       }
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [serverSubmit]);
+
+  // Fetch the current wrongbook/favorites/recent tab on entry + on tab change (authed). wbLoadedTab
+  // (set only on SUCCESS) guards against redundant refetches; a failed fetch leaves it null, so the
+  // fetch retries on the next entry/tab-change rather than looping (wbError is NOT a refetch trigger).
+  useEffect(() => {
+    if (!serverSubmit) return;
+    if (state.screen !== "wrongbook" && state.screen !== "favorites") return;
+    if (state.wbLoadedTab === state.wbTab) return;
+    wbLoad(state.wbTab, { reset: true });
+  }, [serverSubmit, state.screen, state.wbTab, state.wbLoadedTab, wbLoad]);
+
+  // Refresh the home 最近练习 card whenever navigating to home (authed). Seeded from initialData.
+  useEffect(() => {
+    if (!serverSubmit) return;
+    if (state.screen !== "home") return;
+    homeRecentLoad();
+  }, [serverSubmit, state.screen, homeRecentLoad]);
+
+  // Global shortcuts (§G): Cmd/Ctrl+1..8 → the 8 nav screens; on the practice screen Enter=submit,
+  // →=next, ←=prev. Skipped while focus is in an input/textarea/contentEditable.
+  useEffect(() => {
+    const NAV: ScreenKey[] = [
+      "home",
+      "practice",
+      "interview",
+      "wrongbook",
+      "favorites",
+      "qbank",
+      "stats",
+      "settings",
+    ];
+    const onKey = (e: KeyboardEvent) => {
+      const el = document.activeElement as HTMLElement | null;
+      const inField = !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !inField) {
+        const n = parseInt(e.key, 10);
+        if (n >= 1 && n <= 8) {
+          e.preventDefault();
+          actionsRef.current?.go(NAV[n - 1]);
+        }
+        return;
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey || inField) return;
+      if (stateRef.current.screen !== "practice") return;
+      if (e.key === "Enter") {
+        const s = stateRef.current;
+        const { q } = currentPractice(s, serverSubmit);
+        if (q && s.pAnswers[q.id] && !s.pReveal[q.id] && !s.pSubmitting) {
+          e.preventDefault();
+          actionsRef.current?.pSubmit();
+        }
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        actionsRef.current?.pNext();
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        actionsRef.current?.pPrev();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [serverSubmit]);
 
   const actions = useMemo<Actions>(
     () => ({
@@ -1602,69 +2337,91 @@ export function AppProvider({
       // practice
       pAnswer: (ans) =>
         patch((s) => {
-          const filtered = filterBank(s.bank, s);
-          if (filtered.length === 0) return {};
-          const cq = filtered[((s.pIndex % filtered.length) + filtered.length) % filtered.length];
-          return { pAnswers: { ...s.pAnswers, [cq.id]: ans } };
+          const { q } = currentPractice(s, serverSubmit);
+          if (!q) return {};
+          // Clear any inline submit error — the answer changed, so a retry starts clean.
+          return { pAnswers: { ...s.pAnswers, [q.id]: ans }, pSubmitError: null };
         }),
       pSubmit: () => {
         const s = stateRef.current;
-        const filtered = filterBank(s.bank, s);
-        if (filtered.length === 0) return;
-        const cq = filtered[((s.pIndex % filtered.length) + filtered.length) % filtered.length];
-        const ans = s.pAnswers[cq.id];
+        const { q } = currentPractice(s, serverSubmit);
+        if (!q) return;
+        const ans = s.pAnswers[q.id];
         if (!ans) return;
-        // §5.4: authed → server-authoritative grade + reveal + attemptId; demo → local grade +
-        // buildReveal (resolved inside submitFn). We ALWAYS store a PracticeReveal entry keyed by
-        // question id — its presence is what flips the question into the graded/analysis state.
-        submitFn(cq.id, ans).then(({ result, revealed, attemptId }) => {
-          setState((prev) => {
-            // fold the graded result into progress; store the submit outcome for reveal + self-grade.
-            const prevP = prev.progress[cq.id] ?? {};
-            const isCorrect = result.status === "correct";
-            const isWrong = result.status === "incorrect";
-            const nextP: ProgressLite = {
-              ...prevP,
-              attempts: (prevP.attempts ?? 0) + 1,
-              correctCount: (prevP.correctCount ?? 0) + (isCorrect ? 1 : 0),
-              wrongCount: (prevP.wrongCount ?? 0) + (isWrong ? 1 : 0),
-              lastScore: result.score,
-              lastStatus: result.status,
-              lastAt: Date.now(),
-              lastAnswer: ans,
-            };
-            const entry: PracticeReveal = { result, revealed, attemptId };
-            return {
+        if (s.pReveal[q.id]) return; // already submitted → no re-submit (no double quota / no overwrite)
+        if (s.pSubmitting) return; // a submit is in flight
+        patch({ pSubmitting: true, pSubmitError: null });
+        // Measured time on this question → real durationMs (books studyMs server-side, §B).
+        const durationMs = Math.max(0, Date.now() - questionStartRef.current);
+        submitFn(q.id, ans, { sessionId: s.pSessionId ?? undefined, durationMs })
+          .then((outcome) => {
+            if (outcome.ok) {
+              const { result, revealed, attemptId } = outcome;
+              setState((prev) => {
+                const prevP = prev.progress[q.id] ?? {};
+                const isCorrect = result.status === "correct";
+                const isWrong = result.status === "incorrect";
+                const nextP: ProgressLite = {
+                  ...prevP,
+                  attempts: (prevP.attempts ?? 0) + 1,
+                  correctCount: (prevP.correctCount ?? 0) + (isCorrect ? 1 : 0),
+                  wrongCount: (prevP.wrongCount ?? 0) + (isWrong ? 1 : 0),
+                  lastScore: result.score,
+                  lastStatus: result.status,
+                  lastAt: Date.now(),
+                  lastAnswer: ans,
+                };
+                return {
+                  ...prev,
+                  progress: { ...prev.progress, [q.id]: nextP },
+                  pReveal: { ...prev.pReveal, [q.id]: { result, revealed, attemptId } },
+                  pShowAnalysis: true,
+                  pSubmitting: false,
+                  pSubmitError: null,
+                  pAnsweredCount: prev.pAnsweredCount + 1,
+                };
+              });
+            } else {
+              // FAILURE (§B): do NOT write pReveal, do NOT open analysis; the answer stays editable and
+              // an inline error + retry is surfaced (PAYMENT_REQUIRED routes to the paywall via .code).
+              setState((prev) => ({
+                ...prev,
+                pSubmitting: false,
+                pSubmitError: {
+                  code: outcome.error.code,
+                  message: mapErrorToMessage(outcome.error.code, outcome.error.message),
+                },
+              }));
+            }
+          })
+          .catch(() =>
+            setState((prev) => ({
               ...prev,
-              progress: { ...prev.progress, [cq.id]: nextP },
-              pReveal: { ...prev.pReveal, [cq.id]: entry },
-              pShowAnalysis: true,
-            };
-          });
-        });
+              pSubmitting: false,
+              pSubmitError: { code: "INTERNAL", message: mapErrorToMessage("INTERNAL") },
+            })),
+          );
       },
       pSelfGrade: (score, ticks) => {
         const s = stateRef.current;
-        const filtered = filterBank(s.bank, s);
-        if (filtered.length === 0) return;
-        const cq = filtered[((s.pIndex % filtered.length) + filtered.length) % filtered.length];
-        const attemptId = s.pReveal[cq.id]?.attemptId;
+        const { q } = currentPractice(s, serverSubmit);
+        if (!q) return;
+        const attemptId = s.pReveal[q.id]?.attemptId;
         const selfAct = serverActions?.selfGradeAttempt;
 
         // AUTHED (§5.4 / invariant #4): a subjective attempt already exists (submitted → attemptId).
-        // Persist the self score server-side (writes the independent selfScore column) and fold the
-        // returned result back into pReveal so the badge/analysis reflect it. Optimistically also
-        // record the self answer so the buttons show the active selection immediately.
+        // Persist the self score server-side (independent selfScore column) and fold the returned
+        // result back into pReveal. Optimistically record the self answer for the active button state.
         if (serverSubmit && selfAct && attemptId) {
           selfAct({ attemptId, selfScore: score, ...(ticks ? { rubricTicks: ticks } : {}) })
             .then((r) => {
               if (r.ok) {
                 setState((prev) => {
-                  const cur = prev.pReveal[cq.id];
+                  const cur = prev.pReveal[q.id];
                   if (!cur) return prev;
                   return {
                     ...prev,
-                    pReveal: { ...prev.pReveal, [cq.id]: { ...cur, result: r.data.result } },
+                    pReveal: { ...prev.pReveal, [q.id]: { ...cur, result: r.data.result } },
                   };
                 });
               }
@@ -1672,18 +2429,15 @@ export function AppProvider({
             .catch(() => undefined);
         }
 
-        // Both modes: record the self answer (drives the button active state + demo local grade).
         const ans: UserAnswer = { kind: "self", selfScore: score, ...(ticks ? { rubricTicks: ticks } : {}) };
-        setState((prev) => ({ ...prev, pAnswers: { ...prev.pAnswers, [cq.id]: ans } }));
+        setState((prev) => ({ ...prev, pAnswers: { ...prev.pAnswers, [q.id]: ans } }));
       },
       pMove: (id, dir) =>
         patch((s) => {
-          const filtered = filterBank(s.bank, s);
-          if (filtered.length === 0) return {};
-          const cq = filtered[((s.pIndex % filtered.length) + filtered.length) % filtered.length];
-          if (cq.type !== "ordering") return {};
-          const items = (cq as OrderingQ).items;
-          const prev = s.pAnswers[cq.id];
+          const { q } = currentPractice(s, serverSubmit);
+          if (!q || q.type !== "ordering") return {};
+          const items = (q as OrderingQ).items;
+          const prev = s.pAnswers[q.id];
           const cur =
             prev?.kind === "order" && prev.order.length === items.length
               ? prev.order.slice()
@@ -1692,44 +2446,64 @@ export function AppProvider({
           const j = i + dir;
           if (i < 0 || j < 0 || j >= cur.length) return {};
           [cur[i], cur[j]] = [cur[j], cur[i]];
-          return { pAnswers: { ...s.pAnswers, [cq.id]: { kind: "order", order: cur } } };
+          return { pAnswers: { ...s.pAnswers, [q.id]: { kind: "order", order: cur } } };
         }),
       pToggleFav: (id) => {
-        // Optimistic local toggle (authoritative for the immediate UI); persist best-effort when
-        // the server action is wired (demo mode → no-op). Errors never disrupt the optimistic UI.
-        serverActions?.toggleFavorite?.({ questionId: id }).catch(() => undefined);
+        const toggle = serverActions?.toggleFavorite;
+        if (serverSubmit && toggle) {
+          // Optimistic flip; the server's authoritative {fav} wins; revert on error (§C).
+          patch((s) => ({ pFav: { ...s.pFav, [id]: !s.pFav[id] }, wbItems: flipFavById(s.wbItems, id) }));
+          toggle({ questionId: id })
+            .then((r) => {
+              if (r.ok) {
+                setState((s) => {
+                  let wbItems = setFavById(s.wbItems, id, r.data.fav);
+                  if (s.wbTab === "收藏夹" && !r.data.fav) wbItems = wbItems.filter((x) => x.id !== id);
+                  return { ...s, pFav: { ...s.pFav, [id]: r.data.fav }, wbItems };
+                });
+              } else {
+                patch((s) => ({ pFav: { ...s.pFav, [id]: !s.pFav[id] }, wbItems: flipFavById(s.wbItems, id) }));
+              }
+            })
+            .catch(() =>
+              patch((s) => ({ pFav: { ...s.pFav, [id]: !s.pFav[id] }, wbItems: flipFavById(s.wbItems, id) })),
+            );
+          return;
+        }
+        // Demo: local optimistic toggle (no server).
         patch((s) => ({
           pFav: { ...s.pFav, [id]: !s.pFav[id] },
           progress: { ...s.progress, [id]: { ...(s.progress[id] ?? {}), fav: !(s.progress[id]?.fav) } },
         }));
       },
-      pNext: () => {
-        // Local paging (modulo over the injected first batch) is authoritative for the UI and can
-        // never dead-end. When wired, also advance the server cursor best-effort so the backend can
-        // serve fresh questions in future flows.
-        const g = serverActions?.getQuestionForPractice;
-        if (g) {
-          g({ cursor: practiceCursorRef.current ?? undefined })
-            .then((r) => {
-              if (r.ok && r.data.nextCursor) practiceCursorRef.current = r.data.nextCursor;
-            })
-            .catch(() => undefined);
-        }
-        // Advance the index and leave analysis mode. Reset the CURRENT question's submit outcome so
-        // that if the user cycles back to it, it renders ungraded again (fresh attempt) — matching
-        // the "moving on shows it ungraded" UX. pAnswers are preserved (demo parity).
+      pNext: () =>
         patch((s) => {
-          const filtered = filterBank(s.bank, s);
-          const next: Partial<AppState> = { pIndex: s.pIndex + 1, pShowAnalysis: false };
-          if (filtered.length > 0) {
-            const cq = filtered[((s.pIndex % filtered.length) + filtered.length) % filtered.length];
-            if (s.pReveal[cq.id]) {
-              const { [cq.id]: _drop, ...rest } = s.pReveal;
+          const { q } = currentPractice(s, serverSubmit);
+          const next: Partial<AppState> = { pShowAnalysis: false, pSubmitError: null };
+          if (serverSubmit) {
+            // Advance within the loaded queue; clamp at the last item (the paging effect fetches more).
+            // KEEP pReveal so a submitted question stays graded/locked (no re-submit / re-quota on return).
+            next.pIndex = Math.min(s.pIndex + 1, Math.max(0, s.bank.length - 1));
+          } else {
+            // Demo: modulo wrap (handled in currentPractice); clear the current reveal so a cycled-back
+            // sample question re-practices ungraded (prototype parity).
+            next.pIndex = s.pIndex + 1;
+            if (q && s.pReveal[q.id]) {
+              const { [q.id]: _drop, ...rest } = s.pReveal;
               next.pReveal = rest;
             }
           }
           return next;
-        });
+        }),
+      pPrev: () =>
+        patch((s) => ({ pIndex: Math.max(0, s.pIndex - 1), pShowAnalysis: false, pSubmitError: null })),
+      pRestart: () => {
+        if (!serverSubmit) {
+          patch({ pIndex: 0, pShowAnalysis: false, pSubmitError: null });
+          return;
+        }
+        patch({ pIndex: 0, pCursor: null, pNoMore: false, pReveal: {}, pShowAnalysis: false, pSubmitError: null });
+        loadPracticeBatch({ reset: true });
       },
       pToggleAna: () => patch((s) => ({ pShowAnalysis: !s.pShowAnalysis })),
 
@@ -1768,76 +2542,132 @@ export function AppProvider({
           return { examMarked: m };
         }),
       examSubmit: () => {
-        // Dual-mode submit (blocker #2).
-        //   AUTHED: submitExam is the AUTHORITATIVE grader (§5.4). We await it and drive the result
-        //     screen's score/correct/wrong + per-question reveals from state.examServer. On error we
-        //     still mark submitted but leave examServer null → the screen shows a graceful pending/
-        //     error state, NEVER a fabricated 0/100 presented as real.
+        // §D dual-mode.
+        //   AUTHED: submitExam is the AUTHORITATIVE grader. We mark submitted, then adapt the server
+        //     result into examServer (runSubmitExam). On failure → examSubmitError (screen offers
+        //     重试), NEVER a fabricated 0/100. A start-failed session (no sid) does NOT flip submitted
+        //     — it just flags the error so the screen doesn't dead-end in a永远「评分中」 (audit P2).
         //   DEMO: no server session → computeVals local-grades the full sample bank as before.
         const s = stateRef.current;
         const sid = s.examSessionId;
-        const submitAct = serverActions?.submitExam;
-        if (serverSubmit && submitAct && sid) {
-          patch({ examSubmitted: true, examServer: null });
-          submitAct({ sessionId: sid })
-            .then((r) => {
-              if (r.ok) {
-                const typeById = (qid: string) =>
-                  stateRef.current.examBank.find((x) => x.id === qid)?.type;
-                const partTypesById = (qid: string) => {
-                  const rec = stateRef.current.examBank.find((x) => x.id === qid);
-                  return rec?.type === "scenario"
-                    ? Object.fromEntries((rec as ScenarioQ).parts.map((p) => [p.id, p.type]))
-                    : undefined;
-                };
-                const adapted = adaptExamSubmit(r.data, typeById, partTypesById);
-                setState((prev) => ({ ...prev, examServer: adapted }));
-              }
-              // r.ok === false → leave examServer null (screen shows pending/error, not a fake score)
-            })
-            .catch(() => undefined);
+        if (serverSubmit) {
+          if (!sid || !serverActions?.submitExam) {
+            patch({ examSubmitError: true });
+            return;
+          }
+          patch({ examSubmitted: true, examServer: null, examSubmitError: false });
+          runSubmitExam(sid);
           return;
         }
-        // Demo (or authed with no live session — degrade to the local screen without a fake grade).
         patch({ examSubmitted: true });
       },
+      examRetrySubmit: () => {
+        const s = stateRef.current;
+        const sid = s.examSessionId;
+        if (!(serverSubmit && sid && serverActions?.submitExam)) return;
+        patch({ examServer: null, examSubmitError: false });
+        runSubmitExam(sid);
+      },
       examReset: () => {
-        const r = 5316;
+        if (serverSubmit) {
+          // Clear the whole server lifecycle so the entry effect resumes/starts a FRESH session, and
+          // empty the bank so no ghost exam shows in the gap. The clock reseeds from the new session.
+          patch({
+            examSubmitted: false,
+            examRemain: null,
+            examDurationSec: null,
+            examIndex: 0,
+            examAnswers: {},
+            examMarked: [],
+            examBank: [],
+            examSessionId: null,
+            examStarting: false,
+            examResuming: false,
+            examStartError: false,
+            examServer: null,
+            examSubmitError: false,
+            examAutoSubmitted: false,
+          });
+          return;
+        }
+        const r = DEMO_EXAM_SEC;
         try {
           localStorage.setItem("fe_exam_remain", String(r));
         } catch {}
-        // Clear the server exam lifecycle too (blocker #2) so the start-once effect fires again and
-        // "再考一次" gets a FRESH server session + newly-stripped bank. Demo just resets the local
-        // exam. examBank is left as-is; the start effect overwrites it when the new session lands.
-        patch({
-          examSubmitted: false,
-          examRemain: r,
-          examIndex: 0,
-          examAnswers: {},
-          examMarked: [],
-          examSessionId: null,
-          examStarting: false,
-          examStartError: false,
-          examServer: null,
-        });
+        patch({ examSubmitted: false, examRemain: r, examIndex: 0, examAnswers: {}, examMarked: [] });
+      },
+      setExamCount: (n) => {
+        if (stateRef.current.examSessionId) return; // only before a session exists (server clamps to bank)
+        patch({ examCount: Math.max(1, Math.min(200, Math.round(n))) });
       },
 
-      // wrongbook
-      wbSetTab: (t) => patch({ wbTab: t, wbPage: 1 }),
+      // wrongbook / favorites / recent
+      wbSetTab: (t) => patch({ wbTab: t, wbPage: 1, wbItems: [], wbCursor: null, wbLoadedTab: null }),
       wbGo: (n) => patch({ wbPage: n }),
+      wbLoadMore: () => {
+        const s = stateRef.current;
+        if (!serverSubmit || !s.wbCursor || s.wbLoading) return;
+        wbLoad(s.wbTab, { reset: false });
+      },
       toggleFav: (id) => {
-        // Persist best-effort when wired; optimistic local toggle drives the list-row star.
-        serverActions?.toggleFavorite?.({ questionId: id }).catch(() => undefined);
+        const toggle = serverActions?.toggleFavorite;
+        if (serverSubmit && toggle) {
+          // Optimistic flip; the server's authoritative {fav} wins; on the 收藏夹 tab an un-faved row
+          // is removed; revert on error (§C).
+          patch((s) => ({ wbItems: flipFavById(s.wbItems, id), pFav: { ...s.pFav, [id]: !s.pFav[id] } }));
+          toggle({ questionId: id })
+            .then((r) => {
+              if (r.ok) {
+                setState((s) => {
+                  let wbItems = setFavById(s.wbItems, id, r.data.fav);
+                  if (s.wbTab === "收藏夹" && !r.data.fav) wbItems = wbItems.filter((x) => x.id !== id);
+                  return { ...s, wbItems, pFav: { ...s.pFav, [id]: r.data.fav } };
+                });
+              } else {
+                patch((s) => ({ wbItems: flipFavById(s.wbItems, id), pFav: { ...s.pFav, [id]: !s.pFav[id] } }));
+              }
+            })
+            .catch(() =>
+              patch((s) => ({ wbItems: flipFavById(s.wbItems, id), pFav: { ...s.pFav, [id]: !s.pFav[id] } })),
+            );
+          return;
+        }
+        // Demo: local optimistic star.
         patch((s) => ({ wbFav: { ...s.wbFav, [id]: !s.wbFav[id] } }));
       },
+      wbMaster: (id) => {
+        // 「标记已掌握」 (wrongbook tab only). masterWrong → remove the row on success (§C).
+        const master = serverActions?.masterWrong;
+        if (!(serverSubmit && master)) return;
+        master({ questionId: id })
+          .then((r) => {
+            if (r.ok) setState((s) => ({ ...s, wbItems: s.wbItems.filter((x) => x.id !== id) }));
+          })
+          .catch(() => undefined);
+      },
 
-      // filters
+      // filters (a change refetches the practice queue from scratch via the reset-fetch effect, §B)
       toggleType: (t) => patch((s) => ({ pfTypes: { ...s.pfTypes, [t]: !s.pfTypes[t] } })),
       setDiff: (d) => patch({ pfDiff: d }),
       toggleTag: (t) => patch((s) => ({ pfTags: { ...s.pfTags, [t]: !s.pfTags[t] } })),
       toggleCompany: () => patch((s) => ({ pfCompany: !s.pfCompany })),
       resetFilters: () =>
-        patch({ pfTypes: { ...INITIAL_PF_TYPES }, pfDiff: "medium", pfTags: {}, pfCompany: false }),
+        patch({
+          pfTypes: { ...INITIAL_PF_TYPES },
+          pfDiff: serverSubmit ? "all" : "medium",
+          pfTags: {},
+          pfCompany: false,
+        }),
+
+      // settings
+      setGoal: (n) => {
+        const val = Math.max(5, Math.min(500, Math.round(n)));
+        try {
+          localStorage.setItem("bo_daily_goal", String(val));
+        } catch {}
+        patch({ setGoal: val });
+      },
+      updateUserName: (name) => patch((s) => ({ user: { ...(s.user ?? {}), name } })),
 
       // qbank
       importPaste: (text) => {
@@ -1910,8 +2740,10 @@ export function AppProvider({
       },
       setMergeMode: (m) => patch({ qbankMergeMode: m }),
     }),
-    [patch, submitFn, serverActions, serverSubmit],
+    [patch, submitFn, serverActions, serverSubmit, loadPracticeBatch, wbLoad, runSubmitExam],
   );
+  // Latest actions for the timer/keyboard effects (which call handlers from a long-lived closure).
+  actionsRef.current = actions;
 
   const vals = useMemo(() => computeVals(state, actions, serverSubmit), [state, actions, serverSubmit]);
 

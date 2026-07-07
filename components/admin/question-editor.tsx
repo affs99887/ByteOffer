@@ -12,6 +12,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createQuestionAction, updateQuestionAction } from "@/lib/actions/admin";
+import type { AdminBank } from "@/lib/server/services/adminService";
 import { Banner, ghostBtnStyle, inputStyle, monoTextareaStyle, priBtnStyle } from "./ui";
 
 const SKELETON = {
@@ -34,16 +35,18 @@ export interface QuestionEditorProps {
   targetId?: string;
   /** For edit: the existing record JSON (from payload). For create: undefined → skeleton. */
   initialRecord?: unknown;
-  /** For create: the bank the new question lands in. */
+  /** For create: the banks to choose from (drives the bankId <select>). */
+  banks?: AdminBank[];
+  /** For create: a preselected bank id (defaults to the first bank). */
   bankId?: string;
   onDone?: () => void;
   onCancel?: () => void;
 }
 
-export function QuestionEditor({ mode, targetId, initialRecord, bankId, onDone, onCancel }: QuestionEditorProps) {
+export function QuestionEditor({ mode, targetId, initialRecord, banks, bankId, onDone, onCancel }: QuestionEditorProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [bank, setBank] = useState(bankId ?? "");
+  const [bank, setBank] = useState(bankId ?? banks?.[0]?.id ?? "");
   const [text, setText] = useState(() =>
     JSON.stringify(mode === "edit" && initialRecord ? initialRecord : SKELETON, null, 2),
   );
@@ -65,7 +68,7 @@ export function QuestionEditor({ mode, targetId, initialRecord, bankId, onDone, 
     }
 
     if (mode === "create" && !bank.trim()) {
-      setError("请填写题库 ID（bankId）");
+      setError("请选择目标题库");
       return;
     }
 
@@ -105,9 +108,19 @@ export function QuestionEditor({ mode, targetId, initialRecord, bankId, onDone, 
       {mode === "create" && (
         <div>
           <label style={{ display: "block", fontSize: "12.5px", fontWeight: 600, color: "var(--ink2)", marginBottom: "6px" }}>
-            题库 ID（bankId）
+            目标题库
           </label>
-          <input value={bank} onChange={(e) => setBank(e.target.value)} placeholder="例如 clx… 的题库 cuid" style={inputStyle} />
+          {banks && banks.length > 0 ? (
+            <select value={bank} onChange={(e) => setBank(e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
+              {banks.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.title}（{b.slug}）
+                </option>
+              ))}
+            </select>
+          ) : (
+            <Banner kind="info">尚无题库，请先在「题库管理」创建题库，再新建题目。</Banner>
+          )}
         </div>
       )}
 
