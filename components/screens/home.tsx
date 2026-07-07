@@ -27,7 +27,7 @@ export function HomeScreen() {
           <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: '11px', letterSpacing: '.14em', color: 'var(--pri)', fontWeight: 600, marginBottom: '10px' }}>// 仪表盘 · OVERVIEW</div>
           <div style={{ fontFamily: "'Space Grotesk','Noto Sans SC',sans-serif", fontSize: '26px', fontWeight: 700, color: 'var(--ink)', letterSpacing: '-.01em' }}>{v.authed ? `${greet}，${v.user?.name || '同学'}` : '早上好，前端追梦人'}</div>
           <div style={{ fontSize: '13.5px', color: 'var(--ink2)', marginTop: '8px' }}>{v.authed ? (
-            <>今日已完成 <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>{v.statTodayCount}</span> 题，保持节奏。</>
+            <>今日已完成 <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>{v.statTodayLive}</span> 题，保持节奏。</>
           ) : (
             <>距离下次面试还有 <span style={{ fontFamily: "'JetBrains Mono',monospace", color: 'var(--pri)', fontWeight: 700 }}>07</span> 天 · 今日已完成 <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>56</span> 题，保持节奏。</>
           )}</div>
@@ -45,7 +45,7 @@ export function HomeScreen() {
         </div>
         <div className="bo-card" style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: '12px', padding: '17px 18px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span style={{ fontSize: '12.5px', color: 'var(--ink3)', fontWeight: 600 }}>今日完成</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ink3)" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: .6 }}><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M8.5 12l2.4 2.4L15.5 9.5" /></svg></div>
-          <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: '30px', fontWeight: 700, color: 'var(--ink)', letterSpacing: '-.02em', lineHeight: 1, marginTop: '13px' }}><CountUp to={v.authed ? v.statTodayCount : 56} /></div>
+          <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: '30px', fontWeight: 700, color: 'var(--ink)', letterSpacing: '-.02em', lineHeight: 1, marginTop: '13px' }}><CountUp to={v.authed ? v.statTodayLive : 56} /></div>
           {v.authed ? (
             v.statTodayDeltaAttempts != null ? (
               <div style={deltaLine}><span style={{ fontFamily: "'JetBrains Mono',monospace", color: deltaColor(v.statTodayDeltaAttempts), fontWeight: 700 }}>{fmtDelta(v.statTodayDeltaAttempts)}</span>较昨日</div>
@@ -68,7 +68,7 @@ export function HomeScreen() {
         <div className="bo-card" style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: '12px', padding: '17px 18px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span style={{ fontSize: '12.5px', color: 'var(--ink3)', fontWeight: 600 }}>连续打卡</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ink3)" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: .6 }}><path d="M13 3L6 13h5l-1 8 7-11h-5z" /></svg></div>
           <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: '30px', fontWeight: 700, color: 'var(--ink)', letterSpacing: '-.02em', lineHeight: 1, marginTop: '13px' }}><CountUp to={v.authed ? v.statStreak : 18} /><span style={{ fontSize: '15px', color: 'var(--ink3)', fontWeight: 500 }}> 天</span></div>
-          <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '6px' }}>累计练习 <span style={{ fontFamily: "'JetBrains Mono',monospace", color: 'var(--ink2)', fontWeight: 700 }}>{v.authed ? v.statTotalAttempts : 62}</span> 题</div>
+          <div style={{ marginTop: '10px', fontSize: '12px', color: 'var(--ink3)', display: 'flex', alignItems: 'center', gap: '6px' }}>累计练习 <span style={{ fontFamily: "'JetBrains Mono',monospace", color: 'var(--ink2)', fontWeight: 700 }}>{v.authed ? v.statTotalLive : 62}</span> 题</div>
         </div>
       </div>
 

@@ -56,7 +56,7 @@ export function PracticeScreen() {
               {v.pHasQ && <span style={v.pTypeChip}>{v.pQ.type}</span>}
               {v.pHasQ && <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: '13px', color: 'var(--ink2)', fontWeight: 600 }}>第 {v.pNo} 题</span>}
               <div style={{ flex: 1, height: '6px', background: 'var(--track)', borderRadius: '6px', overflow: 'hidden', maxWidth: '240px' }}><div style={v.pBarStyle}></div></div>
-              <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: '13px', color: 'var(--ink2)', fontWeight: 600 }}>今日 {v.statTodayCount + v.pAnsweredCount} / {v.pGoal}</span>
+              <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: '13px', color: 'var(--ink2)', fontWeight: 600 }}>今日 {v.statTodayLive} / {v.pGoal}</span>
               <div style={{ flex: 1 }}></div>
               {v.pHasQ && (<>
                 <span style={v.pDiffChip.style}><span style={v.pDiffChip.dot}></span>{v.pDiffChip.label}</span>

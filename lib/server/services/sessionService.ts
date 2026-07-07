@@ -473,11 +473,20 @@ export async function submitExam(params: {
       questionIds: true,
       startedAt: true,
       durationSec: true,
+      totalScore: true,
+      maxScore: true,
     },
   });
   if (!session) throw new NotFoundError();
   if (session.status === "submitted") {
-    throw new ValidationError("该考试已交卷", { sessionId: "会话已 submitted" });
+    // IDEMPOTENT re-submit: the grading tx may have committed while the HTTP response was lost
+    // (or an auto-submit raced a manual one). Throwing here would strand the client on a永久
+    // "评分失败/重试" dead-end even though the grade is already durable — instead rebuild the same
+    // SubmitExamResult from the stored session totals + graded Attempt rows and return it.
+    return rebuildSubmittedExam(userId, sessionId, session.questionIds, {
+      totalScore: session.totalScore ?? 0,
+      maxScore: session.maxScore ?? 0,
+    });
   }
   if (session.status !== "active" && session.status !== "expired") {
     throw new ForbiddenError("会话状态不允许交卷");
@@ -567,7 +576,10 @@ export async function submitExam(params: {
 
       await upsertProgress(tx, userId, qid, res, userAnswer ?? { kind: "text", value: "" });
       if (res.status === "incorrect") await upsertWrongbook(tx, userId, qid);
-      await upsertDailyStat(tx, userId, res);
+      // countAttempt: exam grading bypasses the practice quota gate (the sole other writer of
+      // DailyUserStat.attempts), so each graded exam question books its attempt here — keeping
+      // 刷题量/今日完成 truthful and matching the nightly reconcile's per-Attempt-row count.
+      await upsertDailyStat(tx, userId, res, undefined, true);
 
       perQuestion.push({ questionId: qid, result: res, revealed: revealKey(rec) });
     }
@@ -592,4 +604,60 @@ export async function submitExam(params: {
   });
 
   return { totalScore, maxScore, perQuestion };
+}
+
+/**
+ * rebuildSubmittedExam — reassemble the SubmitExamResult of an ALREADY-submitted session from the
+ * durable rows (session totals + the graded Attempt per question + revealKey on the frozen
+ * questions). Powers idempotent submitExam retries: the client's "重试评分" after a lost response
+ * gets the real grade instead of a dead-end error. Read-only.
+ */
+async function rebuildSubmittedExam(
+  userId: string,
+  sessionId: string,
+  questionIds: string[],
+  totals: { totalScore: number; maxScore: number },
+): Promise<SubmitExamResult> {
+  const attempts = await prisma.attempt.findMany({
+    where: { sessionId, userId },
+    select: {
+      questionId: true,
+      status: true,
+      score: true,
+      maxScore: true,
+      gradingClass: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: "asc" }, // last row per question wins (mirrors the grading pass)
+  });
+  const byQuestion = new Map<string, (typeof attempts)[number]>();
+  for (const a of attempts) byQuestion.set(a.questionId, a);
+
+  const rows = await prisma.question.findMany({
+    where: { id: { in: questionIds }, status: "published" },
+  });
+  const recById = new Map<string, QuestionRecord>();
+  for (const row of rows) {
+    const rec = recordFromRow(row);
+    if (rec) recById.set(row.id, rec);
+  }
+
+  const perQuestion: ExamPerQuestion[] = [];
+  for (const qid of questionIds) {
+    const a = byQuestion.get(qid);
+    const rec = recById.get(qid);
+    if (!a || !rec) continue; // mirrors the grading pass: quarantined/absent rows are skipped
+    perQuestion.push({
+      questionId: qid,
+      result: {
+        gradingClass: a.gradingClass as GradeResult["gradingClass"],
+        status: a.status as GradeResult["status"],
+        score: a.score,
+        max: a.maxScore,
+        answered: a.status !== "ungraded" || a.score !== null,
+      },
+      revealed: revealKey(rec),
+    });
+  }
+  return { totalScore: totals.totalScore, maxScore: totals.maxScore, perQuestion };
 }

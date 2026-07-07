@@ -483,6 +483,12 @@ export interface AppState {
   /** Requested question count for the NEXT exam (authed; usable only before a session exists). */
   examCount: number;
   /**
+   * Authed pre-start state: no active session was found to resume, and we are WAITING for the user
+   * to pick a count and press 开始考试 (examStart) — auto-starting here would render the count
+   * selector permanently unreachable (a session would always exist by the time it painted).
+   */
+  examAwaitingStart: boolean;
+  /**
    * Server exam lifecycle (authed mode only; demo leaves these inert). `examStarting`/`examResuming`
    * guard the start-once / resume-once effect; `examStartError` surfaces a start failure (never a
    * fake 0/100); `examAutoSubmitted` guards the at-0 auto-submit; `examSubmitError` surfaces a submit
@@ -580,6 +586,7 @@ const INITIAL: AppState = {
   examMarked: [],
   examSubmitted: false,
   examCount: 30,
+  examAwaitingStart: false,
   examStarting: false,
   examResuming: false,
   examStartError: false,
@@ -639,6 +646,7 @@ interface Actions {
   examSubmit(): void;
   examRetrySubmit(): void;
   examReset(): void;
+  examStart(): void;
   setExamCount(n: number): void;
   // wrongbook / favorites / recent
   wbSetTab(t: string): void;
@@ -1114,9 +1122,12 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
   const pGoal = state.setGoal || 0;
   const pLiveToday = (state.stats?.todayCount ?? 0) + state.pAnsweredCount;
   const pGoalPct = pGoal > 0 ? Math.min(100, Math.round((pLiveToday / pGoal) * 100)) : 0;
-  // Queue exhausted (authed): server signalled no more pages AND we are at the last loaded question.
+  // Queue exhausted (authed): server signalled no more pages AND the pointer has stepped PAST the
+  // last loaded question (pNext only allows that once pNoMore is set). `>= length` (not length-1):
+  // firing AT the last index would mask the final question forever — and deadlock the whole flow
+  // when a filter matches exactly one question.
   const pExhausted =
-    serverSubmit && state.pNoMore && state.bank.length > 0 && state.pIndex >= state.bank.length - 1;
+    serverSubmit && state.pNoMore && state.bank.length > 0 && state.pIndex >= state.bank.length;
 
   // ---------- exam ----------
   const idx = state.examIndex;
@@ -1352,11 +1363,16 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
   const statTotalAttempts = st?.totalAttempts ?? 0;
   const statAccuracyPct = st?.accuracyPct ?? 0;
   const statTodayCount = st?.todayCount ?? 0;
+  // LIVE overlays: state.stats is a page-load snapshot (never refetched in-session), so screens
+  // that read the raw snapshot go stale the moment the user practices — home would say 今日 5 while
+  // the practice header says 15. Overlay this session's submits so every surface shares one口径.
+  const statTodayLive = statTodayCount + state.pAnsweredCount;
+  const statTotalLive = statTotalAttempts + state.pAnsweredCount;
   const statStreak = st?.streak ?? 0;
   const statStudyMinutes = st?.studyMinutes ?? 0;
   const statStudyHours = Math.round((statStudyMinutes / 60) * 10) / 10;
   const goal = state.setGoal || 60;
-  const todayGoalPct = goal > 0 ? Math.min(100, Math.round((statTodayCount / goal) * 100)) : 0;
+  const todayGoalPct = goal > 0 ? Math.min(100, Math.round((statTodayLive / goal) * 100)) : 0;
 
   // Stats-screen accuracy-trend SVG points from the real trend (last 10 days). Empty → screen keeps
   // its demo polyline. We expose the polyline/area strings + circle points so the screen can map them.
@@ -1427,13 +1443,20 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
     accuracyPct: masteryByCategory.has(c.name) ? (masteryByCategory.get(c.name) as number) : null,
   }));
 
-  // Honest 较昨日 deltas from the last two accuracyTrend days (null when unknowable → the screen
-  // hides the 较昨日 line rather than fabricate a green +X). NEVER invented.
+  // Honest 较昨日 deltas (null when unknowable → the screen hides the 较昨日 line rather than
+  // fabricate a green +X). The trend array only contains days WITH activity, so "the last two
+  // entries" are NOT necessarily today/yesterday — a Thursday visit after a Mon/Tue streak would
+  // otherwise show a stale Mon→Tue delta labelled 较昨日 next to a todayCount of 0. Both entries
+  // must be the actual calendar today & yesterday (UTC day keys, matching the server's dayKey).
   const trendDays = st?.accuracyTrend ?? [];
   const lastDay = trendDays.length > 0 ? trendDays[trendDays.length - 1] : undefined;
   const prevDay = trendDays.length > 1 ? trendDays[trendDays.length - 2] : undefined;
-  const statTodayDeltaAttempts = lastDay && prevDay ? lastDay.attempts - prevDay.attempts : null;
-  const statAccuracyDelta = lastDay && prevDay ? lastDay.accuracyPct - prevDay.accuracyPct : null;
+  const utcDayKey = (d: Date) => d.toISOString().slice(0, 10);
+  const todayKey = utcDayKey(new Date());
+  const yesterdayKey = utcDayKey(new Date(Date.now() - 24 * 3600 * 1000));
+  const deltaValid = !!lastDay && !!prevDay && lastDay.day === todayKey && prevDay.day === yesterdayKey;
+  const statTodayDeltaAttempts = deltaValid ? lastDay!.attempts - prevDay!.attempts : null;
+  const statAccuracyDelta = deltaValid ? lastDay!.accuracyPct - prevDay!.accuracyPct : null;
 
   return {
     // ---- 3b-2 passthrough: real identity for the settings/header (no derivation change) ----
@@ -1652,6 +1675,10 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
     examCount: state.examCount,
     examCanSetCount: !state.examSessionId,
     examSetCount: (n: number) => a.setExamCount(n),
+    // Pre-start panel (authed): no active session to resume → the user picks a count and presses
+    // 开始考试 (examStartDo). Auto-starting made the count selector permanently unreachable.
+    examAwaitingStart: serverSubmit && state.examAwaitingStart,
+    examStartDo: a.examStart,
     // Real composition (from the frozen examBank) — replaces the setup-panel 15/5/5/5 & 30/50/20%.
     examTypeDist,
     examDiffDist,
@@ -1751,6 +1778,8 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
     statTotalAttempts,
     statAccuracyPct,
     statTodayCount,
+    statTodayLive,
+    statTotalLive,
     statStreak,
     statStudyMinutes,
     statStudyHours,
@@ -1980,6 +2009,9 @@ export function AppProvider({
                 pNoMore: r.data.nextCursor === null,
                 pIndex: 0,
                 pReveal: {},
+                // Cleared with pReveal: stale answers on reloaded ids would re-arm the submit
+                // button (the double-submit lock keys off pReveal) → duplicate Attempts.
+                pAnswers: {},
                 pShowAnalysis: false,
                 pLoadingBatch: false,
               };
@@ -2194,9 +2226,11 @@ export function AppProvider({
     if (!serverSubmit) return;
     if (state.screen !== "interview") return;
     if (state.examSessionId || state.examStarting || state.examResuming || state.examSubmitted) return;
+    if (state.examAwaitingStart) return; // pre-start panel is up — the user presses 开始考试
     const getStateAct = serverActions?.getExamState;
     if (!getStateAct) {
-      doStartExam();
+      // No resume capability wired → still let the user pick a count before starting.
+      setState((p) => ({ ...p, examAwaitingStart: true }));
       return;
     }
     setState((p) => ({ ...p, examResuming: true, examStartError: false }));
@@ -2228,13 +2262,13 @@ export function AppProvider({
             examAutoSubmitted: false,
           }));
         } else {
-          setState((p) => ({ ...p, examResuming: false }));
-          doStartExam();
+          // Nothing to resume → hold in the pre-start state so the 题目数量 selector is actually
+          // usable; examStart (the 开始考试 button) is what creates the session.
+          setState((p) => ({ ...p, examResuming: false, examAwaitingStart: true }));
         }
       })
       .catch(() => {
-        setState((p) => ({ ...p, examResuming: false }));
-        doStartExam();
+        setState((p) => ({ ...p, examResuming: false, examAwaitingStart: true }));
       });
   }, [
     serverSubmit,
@@ -2244,6 +2278,7 @@ export function AppProvider({
     state.examStarting,
     state.examResuming,
     state.examSubmitted,
+    state.examAwaitingStart,
     doStartExam,
   ]);
 
@@ -2498,9 +2533,13 @@ export function AppProvider({
           const { q } = currentPractice(s, serverSubmit);
           const next: Partial<AppState> = { pShowAnalysis: false, pSubmitError: null };
           if (serverSubmit) {
-            // Advance within the loaded queue; clamp at the last item (the paging effect fetches more).
-            // KEEP pReveal so a submitted question stays graded/locked (no re-submit / re-quota on return).
-            next.pIndex = Math.min(s.pIndex + 1, Math.max(0, s.bank.length - 1));
+            // Advance within the loaded queue. While more pages may exist (!pNoMore) clamp at the
+            // last item (the paging effect fetches more); once the server said no-more, allow ONE
+            // step past the end (pIndex === bank.length) — that past-the-end position is what flips
+            // pExhausted, so the final question itself stays answerable (firing at length-1 masked
+            // it and deadlocked single-question filters). KEEP pReveal so a submitted question
+            // stays graded/locked (no re-submit / re-quota on return).
+            next.pIndex = Math.min(s.pIndex + 1, Math.max(0, s.bank.length - (s.pNoMore ? 0 : 1)));
           } else {
             // Demo: modulo wrap (handled in currentPractice); clear the current reveal so a cycled-back
             // sample question re-practices ungraded (prototype parity).
@@ -2519,7 +2558,10 @@ export function AppProvider({
           patch({ pIndex: 0, pShowAnalysis: false, pSubmitError: null });
           return;
         }
-        patch({ pIndex: 0, pCursor: null, pNoMore: false, pReveal: {}, pShowAnalysis: false, pSubmitError: null });
+        // pAnswers is cleared WITH pReveal: pSubmit's double-submit lock keys off pReveal, so a
+        // restart that kept the old answers would render them pre-filled and re-submittable
+        // (duplicate Attempt rows + double-counted stats) once the same question ids reload.
+        patch({ pIndex: 0, pCursor: null, pNoMore: false, pReveal: {}, pAnswers: {}, pShowAnalysis: false, pSubmitError: null });
         loadPracticeBatch({ reset: true });
       },
       pToggleAna: () => patch((s) => ({ pShowAnalysis: !s.pShowAnalysis })),
@@ -2585,10 +2627,18 @@ export function AppProvider({
         patch({ examServer: null, examSubmitError: false });
         runSubmitExam(sid);
       },
+      examStart: () => {
+        // The 开始考试 button on the pre-start panel: leaves awaiting mode and creates the session
+        // with the user-chosen examCount.
+        if (stateRef.current.examSessionId || stateRef.current.examStarting) return;
+        patch({ examAwaitingStart: false });
+        doStartExam();
+      },
       examReset: () => {
         if (serverSubmit) {
-          // Clear the whole server lifecycle so the entry effect resumes/starts a FRESH session, and
-          // empty the bank so no ghost exam shows in the gap. The clock reseeds from the new session.
+          // Clear the whole server lifecycle; the entry effect then resumes an active session if
+          // one exists, or lands back on the pre-start panel (count selector + 开始考试). Empty the
+          // bank so no ghost exam shows in the gap. The clock reseeds from the next session.
           patch({
             examSubmitted: false,
             examRemain: null,
@@ -2600,6 +2650,7 @@ export function AppProvider({
             examSessionId: null,
             examStarting: false,
             examResuming: false,
+            examAwaitingStart: false,
             examStartError: false,
             examServer: null,
             examSubmitError: false,
@@ -2757,7 +2808,7 @@ export function AppProvider({
       },
       setMergeMode: (m) => patch({ qbankMergeMode: m }),
     }),
-    [patch, submitFn, serverActions, serverSubmit, loadPracticeBatch, wbLoad, runSubmitExam],
+    [patch, submitFn, serverActions, serverSubmit, loadPracticeBatch, wbLoad, runSubmitExam, doStartExam],
   );
   // Latest actions for the timer/keyboard effects (which call handlers from a long-lived closure).
   actionsRef.current = actions;

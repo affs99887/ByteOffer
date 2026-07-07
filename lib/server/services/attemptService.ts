@@ -117,9 +117,13 @@ export async function upsertDailyStat(
   userId: string,
   res: GradeResult,
   durationMs?: number,
+  countAttempt = false,
 ): Promise<void> {
   const day = today();
-  const correctInc = res.status === "correct" ? 1 : 0;
+  // §7.2 铁律: `correct` shares the objective gate with `objectiveAttempts` (never selfScore).
+  // A crafted direct submit of {kind:"self"} could otherwise land status="correct"/score=null and
+  // pollute the objective numerator — mirror the reconcile pass's gating exactly.
+  const correctInc = res.status === "correct" && isObjectiveScored(res) ? 1 : 0;
   const objectiveInc = isObjectiveScored(res) ? 1 : 0;
   const studyInc = durationMs && durationMs > 0 ? Math.min(durationMs, 24 * 3600 * 1000) : 0;
 
@@ -135,8 +139,12 @@ export async function upsertDailyStat(
       objectiveAttempts: objectiveInc,
       studyMs: studyInc,
     },
-    // Do NOT increment attempts here — owned by the quota gate.
+    // attempts is owned by the quota gate on the PRACTICE path (countAttempt=false). The EXAM
+    // grading path bypasses the gate entirely, so submitExam passes countAttempt=true and this
+    // becomes the counter's writer for those rows — keeping the live totals consistent with the
+    // nightly reconcile, which counts every Attempt row (practice and exam alike).
     update: {
+      ...(countAttempt ? { attempts: { increment: 1 } } : {}),
       ...(correctInc ? { correct: { increment: correctInc } } : {}),
       ...(objectiveInc ? { objectiveAttempts: { increment: objectiveInc } } : {}),
       ...(studyInc ? { studyMs: { increment: studyInc } } : {}),

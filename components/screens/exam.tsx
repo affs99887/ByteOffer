@@ -24,6 +24,23 @@ export function ExamScreen() {
             <div style={{ fontSize: '13.5px', color: 'var(--ink3)', marginTop: '8px', lineHeight: 1.7 }}>服务暂时不可用，请稍后重试。</div>
             <button style={{ marginTop: '22px', background: 'var(--pri)', border: '1px solid var(--pri)', color: '#fff', borderRadius: '9px', padding: '11px 30px', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }} onClick={v.examResetDo}>重试</button>
           </div>
+        ) : v.examAwaitingStart ? (
+          <div style={{ maxWidth: '460px', margin: '60px auto', background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: '14px', padding: '36px 40px' }}>
+            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: '10.5px', letterSpacing: '.13em', color: 'var(--ink3)', fontWeight: 600, marginBottom: '6px' }}>// SETUP</div>
+            <div style={{ fontFamily: "'Space Grotesk','Noto Sans SC',sans-serif", fontSize: '19px', fontWeight: 700, color: 'var(--ink)' }}>开始模拟考试</div>
+            <div style={{ fontSize: '13px', color: 'var(--ink3)', marginTop: '8px', lineHeight: 1.7 }}>从官方题库抽取题目，计时由服务器统一下发；倒计时结束将自动交卷，中途刷新可续考。</div>
+            <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--ink2)', margin: '20px 0 8px' }}>题目数量</div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {[10, 20, 30].map((n) => {
+                const on = v.examCount === n;
+                return (
+                  <button key={n} onClick={() => v.examSetCount(n)} style={{ flex: 1, border: on ? '1.5px solid var(--pri)' : '1px solid var(--line)', background: on ? 'var(--pri-w)' : 'var(--surface)', color: on ? 'var(--pri)' : 'var(--ink2)', borderRadius: '8px', padding: '10px 0', fontSize: '13.5px', fontWeight: 700, cursor: 'pointer', fontFamily: "'JetBrains Mono',monospace" }}>{n}</button>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: '11.5px', color: 'var(--ink3)', marginTop: '8px' }}>题库题量不足时按实际可用题数出卷。</div>
+            <button style={{ width: '100%', marginTop: '22px', background: 'var(--pri)', border: '1px solid var(--pri)', color: '#fff', borderRadius: '9px', padding: '13px', fontSize: '14.5px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 6px 16px rgba(45,91,255,.24)' }} onClick={v.examStartDo}>开始考试</button>
+          </div>
         ) : (<>
         <div className="bo-flexcol" style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'flex-start', marginBottom: '16px' }}>
 

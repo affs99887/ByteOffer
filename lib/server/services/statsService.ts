@@ -426,11 +426,15 @@ export async function reconcileWindow(rangeDays = 3): Promise<{ reconciled: numb
     }
     const t = days.get(dk) ?? { attempts: 0, correct: 0, objectiveAttempts: 0, studyMs: 0 };
     t.attempts += 1;
-    if (a.status === "correct") t.correct += 1;
     // Objective denominator: objective class with a non-null score. selfScore-only attempts (§4)
     // and null-score (manual_reference/ungraded) are excluded — never counted as wrong.
     const isObjective =
       a.score !== null && OBJECTIVE_CLASSES.has(a.gradingClass as GradingClass);
+    // §7.2 铁律: `correct` is the OBJECTIVE numerator — it must share the objectiveAttempts gate.
+    // A self-assessed subjective attempt ends life as status="correct" with score=null; counting it
+    // here (as an ungated status check once did) inflates objective accuracy overnight, diverging
+    // from the live path (upsertDailyStat), which never books subjective self-grades as correct.
+    if (isObjective && a.status === "correct") t.correct += 1;
     if (isObjective) t.objectiveAttempts += 1;
     if (a.durationMs && a.durationMs > 0) {
       t.studyMs += Math.min(a.durationMs, 24 * 3600 * 1000);

@@ -36,11 +36,12 @@ export function SettingsScreen() {
   const [pwOk, setPwOk] = useState<string | null>(null);
   const [pendingPw, startPw] = useTransition();
 
-  // Real identity from initialData.user (via context); graceful fallbacks keep the demo readable.
-  const displayName = savedName || v.user?.name || "前端小白";
-  const email = v.user?.email || "frontend@byteoffer.dev";
+  // Real identity from initialData.user (via context). Authed users with no nickname fall back to
+  // their email (matching the header) — never the demo persona; the persona literal stays demo-only.
+  const displayName = savedName || v.user?.name || (v.authed ? v.user?.email || "未设置昵称" : "前端小白");
+  const email = v.user?.email || (v.authed ? "—" : "frontend@byteoffer.dev");
   const tier = v.entitlement?.tier;
-  const avatarChar = (displayName || "白").trim().charAt(0) || "白";
+  const avatarChar = (displayName || (v.authed ? "用" : "白")).trim().charAt(0) || (v.authed ? "用" : "白");
 
   function saveProfile() {
     const next = name.trim();

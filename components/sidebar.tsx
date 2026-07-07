@@ -201,7 +201,7 @@ export function Sidebar() {
             </div>
             <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
               <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "24px", fontWeight: 700, color: "var(--rail-strong)", lineHeight: 1 }}>{v.authed ? v.statStreak : 18}</span>
-              <span style={{ fontSize: "11px", color: "var(--rail-fg)" }}>天 · 今日目标 {v.authed ? v.statTodayCount : 56}/{v.authed ? v.statGoal : 60}</span>
+              <span style={{ fontSize: "11px", color: "var(--rail-fg)" }}>天 · 今日目标 {v.authed ? v.statTodayLive : 56}/{v.authed ? v.statGoal : 60}</span>
             </div>
             <div style={{ height: "4px", background: "var(--rail-wbd)", borderRadius: "3px", marginTop: "11px", overflow: "hidden" }}>
               <div style={{ width: `${v.authed ? v.statTodayGoalPct : 93}%`, height: "100%", background: "var(--pri)", borderRadius: "3px" }} />
