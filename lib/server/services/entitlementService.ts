@@ -86,10 +86,15 @@ export async function get(userId: string): Promise<Entitlement> {
  * count-then-insert check would open under concurrent submissions.
  *
  * Algorithm:
- *   1. Read the entitlement quota. `dailyQuota == null` → Plus (unlimited) → return immediately.
- *   2. Ensure today's DailyUserStat row exists (upsert with attempts starting at 0; the CREATE
- *      path sets attempts:0 and the conditional UPDATE below does the actual +1, so the first
- *      attempt of the day is counted exactly once).
+ *   1. Read the entitlement quota. `dailyQuota == null` → unlimited → COUNT the attempt
+ *      (unconditional atomic increment) and return without gating. Counting must never be
+ *      skipped: this function is the ONLY writer of `DailyUserStat.attempts`, and the stats
+ *      surface (刷题量 / 今日完成 / accuracyTrend.attempts / streak) is derived from it — an
+ *      early return that skips the increment zeroes those numbers for every unlimited user
+ *      (which, since the all-free launch decision, is every user).
+ *   2. Finite quota: ensure today's DailyUserStat row exists (upsert with attempts starting
+ *      at 0; the CREATE path sets attempts:0 and the conditional UPDATE below does the actual
+ *      +1, so the first attempt of the day is counted exactly once).
  *   3. Do a conditional atomic increment:
  *        UPDATE "DailyUserStat" SET attempts = attempts + 1
  *        WHERE "userId" = $1 AND day = $2 AND attempts < $quota
@@ -110,7 +115,15 @@ export async function assertCanAttempt(userId: string, tx?: Db): Promise<void> {
   // gate below still counts it, even if the stored quota is null (stale Plus). Mirrors get().
   const quota =
     ent && !isExpired(ent) ? ent.dailyQuota : DEFAULT_FREE_ENTITLEMENT.dailyQuota;
-  if (quota === null || quota === undefined) return; // Plus / unlimited → no gate.
+  if (quota === null || quota === undefined) {
+    // Unlimited → no gate, but the attempt is still COUNTED (stats depend on this counter).
+    await db.dailyUserStat.upsert({
+      where: { userId_day: { userId, day: today() } },
+      create: { userId, day: today(), attempts: 1, correct: 0, objectiveAttempts: 0, studyMs: 0 },
+      update: { attempts: { increment: 1 } },
+    });
+    return;
+  }
 
   const day = today();
 

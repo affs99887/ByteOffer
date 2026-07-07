@@ -610,13 +610,7 @@
         "闭包",
         "作用域"
       ],
-      "stem": "阅读以下代码，写出控制台依次输出的内容（每行一个）。",
-      "media": [
-        {
-          "kind": "code",
-          "src": "for (var i = 0; i < 3; i++) {\n  setTimeout(() => console.log(i), 0);\n}\nfor (let j = 0; j < 3; j++) {\n  setTimeout(() => console.log(j), 0);\n}"
-        }
-      ],
+      "stem": "阅读以下代码，写出控制台依次输出的内容（每行一个）。\n\nfor (var i = 0; i < 3; i++) {\n  setTimeout(() => console.log(i), 0);\n}\nfor (let j = 0; j < 3; j++) {\n  setTimeout(() => console.log(j), 0);\n}",
       "expected": "3\n3\n3\n0\n1\n2",
       "explanation": {
         "explain": "var 声明的 i 在函数级（此处为全局）作用域中是同一个变量，三个 setTimeout 回调共享它；同步循环结束后 i 已变为 3，等宏任务执行时三次都打印 3。let 声明的 j 具有块级作用域，每次迭代都会创建一个新的绑定，三个回调各自捕获当轮的 j，因此依次打印 0、1、2。两个循环的定时器回调都在同步代码结束后按注册顺序执行，故先输出三个 3 再输出 0、1、2。这是闭包捕获变量引用而非值、以及块级作用域差异的经典案例。",
@@ -838,13 +832,7 @@
         "枚举",
         "编译"
       ],
-      "stem": "以下 TypeScript 代码编译为 JavaScript 后运行，控制台依次输出什么（每行一个）？",
-      "media": [
-        {
-          "kind": "code",
-          "src": "enum Direction {\n  Up,\n  Down,\n  Left,\n  Right,\n}\nconsole.log(Direction.Up);\nconsole.log(Direction[0]);\nconsole.log(Direction.Right);"
-        }
-      ],
+      "stem": "以下 TypeScript 代码编译为 JavaScript 后运行，控制台依次输出什么（每行一个）？\n\nenum Direction {\n  Up,\n  Down,\n  Left,\n  Right,\n}\nconsole.log(Direction.Up);\nconsole.log(Direction[0]);\nconsole.log(Direction.Right);",
       "expected": "0\nUp\n3",
       "explanation": {
         "explain": "数字枚举默认从 0 开始自增，故 Up 为 0、Down 为 1、Left 为 2、Right 为 3。TypeScript 的数字枚举会生成双向映射：既有名称到值（Direction.Up 等于 0），也有值到名称的反向映射（Direction[0] 等于字符串 'Up'）。因此 Direction.Up 输出 0，Direction[0] 输出 'Up'，Direction.Right 输出 3。注意字符串枚举不生成反向映射，而 const enum 会在编译期内联、不产生运行时对象。",
@@ -2247,13 +2235,7 @@
         "递归",
         "斐波那契"
       ],
-      "stem": "阅读以下 JavaScript 代码，写出 console.log 的输出结果。",
-      "media": [
-        {
-          "kind": "code",
-          "src": "function fib(n) {\n  if (n < 2) return n;\n  return fib(n - 1) + fib(n - 2);\n}\nconsole.log(fib(7));"
-        }
-      ],
+      "stem": "阅读以下 JavaScript 代码，写出 console.log 的输出结果。\n\nfunction fib(n) {\n  if (n < 2) return n;\n  return fib(n - 1) + fib(n - 2);\n}\nconsole.log(fib(7));",
       "expected": "13",
       "explanation": {
         "explain": "该递归定义了斐波那契数列：fib(0) 为 0、fib(1) 为 1，其余为前两项之和，从第 0 项起序列为 0,1,1,2,3,5,8,13,21。因此 fib(7) 等于 13。这种朴素递归存在大量重复子问题，时间复杂度为指数级 O(2^n)，可用记忆化或自底向上的动态规划优化到 O(n)。计算时要注意起始项从第 0 项开始，避免下标错位。",
