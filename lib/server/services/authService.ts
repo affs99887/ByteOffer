@@ -72,8 +72,11 @@ function baseUrl(): string {
 /**
  * register — create a new user (enumeration-safe, dual-mode). The whole verify-vs-active policy
  * hinges on ONE server-config predicate (isEmailEnabled()), evaluated once so the response is a
- * pure function of config. Free email: create User + Subscription{free} + Entitlement{free,quota:30}
- * in one transaction; when email is enabled also mint a verification token (emailVerified:null) and
+ * pure function of config. Create User + Subscription{free} + Entitlement (free = FULL grants:
+ * dailyQuota null/unlimited + premiumBanks, per the all-free launch — mirrors
+ * DEFAULT_FREE_ENTITLEMENT / seed Plan / backfill; a finite quota here would resurrect the
+ * unpurchasable paywall for every new credential registrant) in one transaction; when email is
+ * enabled also mint a verification token (emailVerified:null) and
  * send the link, when it is disabled the account is born emailVerified:now (immediately usable) and
  * no token is issued. Taken email: do NOT reveal it — only nudge the real owner (when email works)
  * and return the SAME { ok, mode } shape. Both branches (and both configs) return identically for a
@@ -122,7 +125,7 @@ export async function register(input: {
         passwordHash,
         subscription: { create: { tier: "free", status: "active" } },
         entitlement: {
-          create: { tier: "free", dailyQuota: 30, premiumBanks: false, examMode: true, aiExplain: false },
+          create: { tier: "free", dailyQuota: null, premiumBanks: true, examMode: true, aiExplain: false },
         },
       },
       select: { id: true },

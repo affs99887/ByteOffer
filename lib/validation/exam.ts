@@ -15,7 +15,7 @@ export const practiceFiltersSchema = z.object({
   bankId: z.string().min(1).optional(),
   types: z.array(questionTypeEnum).optional(),
   difficulty: difficultyEnum.optional(),
-  tags: z.array(z.string()).optional(),
+  tags: z.array(z.string().min(1).max(64)).max(20).optional(),
 });
 export type PracticeFilters = z.infer<typeof practiceFiltersSchema>;
 

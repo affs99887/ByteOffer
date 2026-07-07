@@ -1940,18 +1940,32 @@ export function AppProvider({
   // Fetch a batch with the CURRENT filters. reset:true replaces the queue from scratch (cursor null,
   // pIndex 0, drop reveals); reset:false APPENDS the next cursor page (dedup by id). migrate() each
   // question through the version chain (a no-op passthrough for current-version stripped records).
+  //
+  // EPOCH GUARD: a reset (filter change / restart / screen entry) SUPERSEDES anything in flight —
+  // it bumps the epoch and always issues its own fetch, and every response is discarded on landing
+  // if a newer epoch exists. Without this, a reset arriving while an append (or older reset) is in
+  // flight was silently dropped by the pLoadingBatch guard (queue stuck on the OLD filters), and a
+  // stale in-flight page could later be appended into the NEW filter's queue. Only appends keep the
+  // in-flight early-return (concurrent appends are genuinely redundant).
+  const practiceEpochRef = useRef(0);
   const loadPracticeBatch = useCallback(
     (opts: { reset: boolean }) => {
       const getQ = serverActions?.getQuestionForPractice;
       if (!getQ) return;
       const s = stateRef.current;
-      if (s.pLoadingBatch) return;
+      if (opts.reset) {
+        practiceEpochRef.current++;
+      } else {
+        if (s.pLoadingBatch) return;
+        if (s.pNoMore || !s.pCursor) return;
+      }
+      const epoch = practiceEpochRef.current;
       const cursor = opts.reset ? undefined : s.pCursor ?? undefined;
-      if (!opts.reset && (s.pNoMore || !cursor)) return;
       const filters = buildPracticeFilters(s);
       setState((p) => ({ ...p, pLoadingBatch: true, ...(opts.reset ? { pSubmitError: null } : {}) }));
       getQ({ filters, ...(cursor ? { cursor } : {}), take: PRACTICE_BATCH })
         .then((r) => {
+          if (practiceEpochRef.current !== epoch) return; // superseded by a newer reset — drop stale page
           if (!r.ok) {
             setState((p) => ({ ...p, pLoadingBatch: false }));
             return;
@@ -1982,7 +1996,10 @@ export function AppProvider({
             };
           });
         })
-        .catch(() => setState((p) => ({ ...p, pLoadingBatch: false })));
+        .catch(() => {
+          if (practiceEpochRef.current !== epoch) return; // stale failure must not clear the newer fetch's flag
+          setState((p) => ({ ...p, pLoadingBatch: false }));
+        });
     },
     [serverActions],
   );

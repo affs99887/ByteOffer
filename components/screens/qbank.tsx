@@ -75,7 +75,7 @@ export function QbankScreen() {
           <div style={monoLabel}>// OVERVIEW</div>
           <div style={sectionTitle}>题库总览</div>
           <div style={{ fontSize: "13px", color: "var(--ink2)", marginBottom: "18px" }}>
-            ByteOffer 官方题库，覆盖 13 种题型，由官方统一维护与更新。
+            ByteOffer 官方题库，覆盖 12 种题型，由官方统一维护与更新。
           </div>
           <div style={{ display: "flex", alignItems: "baseline", gap: "10px" }}>
             <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "34px", fontWeight: 700, color: "var(--ink)" }}>{v.qbankBankCount}</span>
@@ -88,7 +88,7 @@ export function QbankScreen() {
           <div style={monoLabel}>// TEMPLATES</div>
           <div style={sectionTitle}>出题模板</div>
           <div style={{ fontSize: "13px", color: "var(--ink2)", marginBottom: "16px" }}>
-            下载 13 类型样例题库或 JSON Schema，作为按 JSON 信封格式出题的模板。
+            下载样例题库或 JSON Schema，作为按 JSON 信封格式出题的模板。
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
             <button onClick={v.qbankDownloadSample} style={{ ...ghostBtn, display: "inline-flex", alignItems: "center", gap: "8px" }}>
