@@ -1,7 +1,15 @@
 "use client";
 
-import type { ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { useApp } from "@/lib/app-context";
+import { logoutAction } from "@/lib/actions/auth";
 
 const IconBtn = ({
   title,
@@ -38,6 +46,147 @@ const Burger = ({ onClick }: { onClick: () => void }) => (
   </div>
 );
 
+// ---------- account dropdown (shared by AppHeader + TopNav) ----------
+// A real menu replacing the old dead cursor:pointer avatar. Identity is authed-gated: in the authed
+// app it shows the signed-in user's real name / first-initial (never a fabricated persona); on the
+// public /demo (authed=false) it keeps the intentional showcase persona 前端小白 / 白.
+
+const menuRowStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  width: "100%",
+  boxSizing: "border-box",
+  padding: "9px 11px",
+  borderRadius: "7px",
+  fontSize: "13px",
+  fontWeight: 500,
+  fontFamily: "inherit",
+  textAlign: "left",
+  textDecoration: "none",
+  border: "none",
+  whiteSpace: "nowrap",
+  transition: "background .12s",
+};
+
+function MenuItem({
+  href,
+  onClick,
+  danger,
+  disabled,
+  children,
+}: {
+  href?: string;
+  onClick?: () => void;
+  danger?: boolean;
+  disabled?: boolean;
+  children: ReactNode;
+}) {
+  const [hover, setHover] = useState(false);
+  const style: CSSProperties = {
+    ...menuRowStyle,
+    color: danger ? "#D63C31" : "var(--ink)",
+    background: hover && !disabled ? "var(--surface-2)" : "transparent",
+    cursor: disabled ? "default" : "pointer",
+    opacity: disabled ? 0.6 : 1,
+  };
+  const hoverProps = {
+    onMouseEnter: () => setHover(true),
+    onMouseLeave: () => setHover(false),
+  };
+  if (href) {
+    return (
+      <a href={href} style={style} onClick={onClick} {...hoverProps}>
+        {children}
+      </a>
+    );
+  }
+  return (
+    <button type="button" style={style} disabled={disabled} onClick={onClick} {...hoverProps}>
+      {children}
+    </button>
+  );
+}
+
+function UserMenu({ variant }: { variant: "full" | "compact" }) {
+  const v = useApp();
+  const [open, setOpen] = useState(false);
+  const [pendingLogout, startLogout] = useTransition();
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // Authed: real identity (email fallback, then a defensive 未登录). Demo: keep the showcase persona.
+  const name = v.authed ? (v.user?.name ?? v.user?.email ?? "未登录") : "前端小白";
+  const initial = v.authed ? ((v.user?.name ?? "").trim().charAt(0) || "用") : "白";
+  const sz = variant === "full" ? "36px" : "34px";
+  const showEmail = v.authed && !!v.user?.name && !!v.user?.email;
+
+  // Outside-click / Escape close (simple, self-contained).
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} style={{ position: "relative" }}>
+      <div
+        className="bo-avatar-row"
+        style={{ display: "flex", alignItems: "center", gap: "9px", cursor: "pointer" }}
+        onClick={() => setOpen((o) => !o)}
+        title="账户菜单"
+      >
+        <div style={{ width: sz, height: sz, flex: "none", borderRadius: "9px", background: "var(--avatar)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: "14px" }}>{initial}</div>
+        {variant === "full" && (
+          <div className="bo-hide-m" style={{ lineHeight: 1.3, maxWidth: "128px" }}>
+            <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
+          </div>
+        )}
+      </div>
+      {open && (
+        <div
+          role="menu"
+          style={{ position: "absolute", top: "calc(100% + 9px)", right: 0, minWidth: "198px", background: "var(--surface)", border: "1px solid var(--line)", borderRadius: "11px", boxShadow: "0 14px 38px rgba(20,26,45,.18)", padding: "6px", zIndex: 60 }}
+        >
+          <div style={{ padding: "8px 11px 9px", borderBottom: "1px solid var(--line)", marginBottom: "5px" }}>
+            <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
+            {showEmail && (
+              <div style={{ fontSize: "11px", color: "var(--ink3)", marginTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{v.user?.email}</div>
+            )}
+          </div>
+          <MenuItem
+            onClick={() => {
+              setOpen(false);
+              v.nav.settings.go();
+            }}
+          >
+            设置
+          </MenuItem>
+          <MenuItem href="/billing" onClick={() => setOpen(false)}>
+            账户与订阅
+          </MenuItem>
+          <div style={{ height: "1px", background: "var(--line)", margin: "5px 6px" }} />
+          <MenuItem
+            danger
+            disabled={pendingLogout}
+            onClick={() => startLogout(async () => { await logoutAction(); })}
+          >
+            {pendingLogout ? "退出中…" : "退出登录"}
+          </MenuItem>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AppHeader() {
   const v = useApp();
   return (
@@ -51,14 +200,6 @@ export function AppHeader() {
         <div style={{ fontFamily: "'Space Grotesk','Noto Sans SC',sans-serif", fontSize: "16px", fontWeight: 700, color: "var(--ink)" }}>{v.topTitle}</div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-        <div className="bo-hide-m bo-search-box" style={{ display: "flex", alignItems: "center", gap: "9px", fontSize: "13px", color: "var(--ink3)", border: "1px solid var(--line)", padding: "7px 11px", borderRadius: "8px", cursor: "text" }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round">
-            <circle cx="11" cy="11" r="6.5" />
-            <path d="M20 20l-4-4" />
-          </svg>
-          搜索题目、知识点…
-          <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "10.5px", color: "var(--ink3)", border: "1px solid var(--line)", borderRadius: "5px", padding: "1px 6px", marginLeft: "14px" }}>⌘K</span>
-        </div>
         <IconBtn title="切换布局：侧边栏 / 顶部导航" onClick={v.toggleLayout} hideM>
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
             <rect x="3" y="4" width="18" height="16" rx="2" />
@@ -76,21 +217,8 @@ export function AppHeader() {
             <path d="M20 14.5A7.5 7.5 0 0 1 9.5 4a7.5 7.5 0 1 0 10.5 10.5z" />
           </svg>
         </IconBtn>
-        <div className="bo-hide-m bo-icon-btn" style={{ position: "relative", width: "36px", height: "36px", borderRadius: "8px", border: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--ink2)" }}>
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M18 8.5a6 6 0 1 0-12 0c0 6-2 7.5-2 7.5h16s-2-1.5-2-7.5" />
-            <path d="M10.5 19a1.8 1.8 0 0 0 3 0" />
-          </svg>
-          <span style={{ position: "absolute", top: "8px", right: "9px", width: "6px", height: "6px", borderRadius: "50%", background: "#F04438", border: "1.5px solid var(--surface)" }} />
-        </div>
         <div className="bo-hide-m" style={{ width: "1px", height: "24px", background: "var(--line)" }} />
-        <div className="bo-avatar-row" style={{ display: "flex", alignItems: "center", gap: "9px", cursor: "pointer" }}>
-          <div style={{ width: "36px", height: "36px", borderRadius: "9px", background: "var(--avatar)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: "14px" }}>白</div>
-          <div className="bo-hide-m" style={{ lineHeight: 1.3 }}>
-            <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--ink)" }}>前端小白</div>
-            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "10px", color: "var(--ink3)", letterSpacing: ".04em" }}>LV.24 · 62d</div>
-          </div>
-        </div>
+        <UserMenu variant="full" />
       </div>
     </header>
   );
@@ -136,14 +264,6 @@ export function TopNav() {
         </nav>
         <div style={{ flex: 1 }} />
         <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>
-          <div className="bo-hide-m bo-search-box" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "var(--ink3)", border: "1px solid var(--line)", padding: "7px 11px", borderRadius: "8px", cursor: "text" }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round">
-              <circle cx="11" cy="11" r="6.5" />
-              <path d="M20 20l-4-4" />
-            </svg>
-            搜索
-            <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "10.5px", color: "var(--ink3)", border: "1px solid var(--line)", borderRadius: "5px", padding: "1px 6px", marginLeft: "8px" }}>⌘K</span>
-          </div>
           <IconBtn title="切换布局：侧边栏 / 顶部导航" onClick={v.toggleLayout} hideM>
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="4" width="18" height="16" rx="2" />
@@ -155,13 +275,7 @@ export function TopNav() {
               <path d="M20 14.5A7.5 7.5 0 0 1 9.5 4a7.5 7.5 0 1 0 10.5 10.5z" />
             </svg>
           </IconBtn>
-          <div className="bo-hide-m" style={{ display: "flex", alignItems: "center", gap: "6px", background: "var(--pri)", color: "#fff", borderRadius: "8px", padding: "8px 13px", fontSize: "12.5px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", boxShadow: "0 4px 12px rgba(45,91,255,.26)" }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="#fff" stroke="none">
-              <path d="M3 8l4.5 3L12 5l4.5 6L21 8l-1.8 10H4.8z" />
-            </svg>
-            Plus 会员
-          </div>
-          <div style={{ width: "34px", height: "34px", borderRadius: "9px", background: "var(--avatar)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700, fontSize: "14px", cursor: "pointer" }}>白</div>
+          <UserMenu variant="compact" />
         </div>
       </div>
     </header>

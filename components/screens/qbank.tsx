@@ -58,6 +58,66 @@ const ghostBtn = {
 export function QbankScreen() {
   const v = useApp();
 
+  // AUTHED honesty gate: the paste / upload / validate / confirm-import / merge / export controls
+  // below are client-memory-only in the real app — confirmImport never persists to the DB and the
+  // export dumps only the ≤30 key-stripped practice batch. So for a logged-in user we show the real
+  // bank overview (authoritative countPublished), the two genuinely-working template downloads, and
+  // an admin pointer. DEMO (/demo, no server actions) keeps the full import/export showcase, unchanged.
+  if (v.authed) {
+    return (
+      <div data-screen-label="题库" className="bo-enter" style={{ maxWidth: "1000px", margin: "0 auto" }}>
+        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "11px", letterSpacing: ".14em", color: "var(--pri)", fontWeight: 600, marginBottom: "16px" }}>
+          // QBANK · 题库总览
+        </div>
+
+        {/* ---------- OVERVIEW ---------- */}
+        <div style={card}>
+          <div style={monoLabel}>// OVERVIEW</div>
+          <div style={sectionTitle}>题库总览</div>
+          <div style={{ fontSize: "13px", color: "var(--ink2)", marginBottom: "18px" }}>
+            ByteOffer 官方题库，覆盖 13 种题型，由官方统一维护与更新。
+          </div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: "10px" }}>
+            <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "34px", fontWeight: 700, color: "var(--ink)" }}>{v.qbankBankCount}</span>
+            <span style={{ fontSize: "13.5px", color: "var(--ink3)" }}>道已发布题目</span>
+          </div>
+        </div>
+
+        {/* ---------- TEMPLATES ---------- */}
+        <div style={card}>
+          <div style={monoLabel}>// TEMPLATES</div>
+          <div style={sectionTitle}>出题模板</div>
+          <div style={{ fontSize: "13px", color: "var(--ink2)", marginBottom: "16px" }}>
+            下载 13 类型样例题库或 JSON Schema，作为按 JSON 信封格式出题的模板。
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+            <button onClick={v.qbankDownloadSample} style={{ ...ghostBtn, display: "inline-flex", alignItems: "center", gap: "8px" }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="4" width="14" height="16" rx="2" /><path d="M9 9h6M9 13h6M9 17h4" /></svg>
+              下载样例题库
+            </button>
+            <button onClick={v.qbankDownloadSchema} style={{ ...ghostBtn, display: "inline-flex", alignItems: "center", gap: "8px" }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7l8-4 8 4-8 4-8-4z" /><path d="M4 7v10l8 4 8-4V7" /></svg>
+              下载 JSON Schema
+            </button>
+          </div>
+        </div>
+
+        {/* ---------- ADMIN ---------- */}
+        <div style={card}>
+          <div style={monoLabel}>// ADMIN</div>
+          <div style={sectionTitle}>题库维护</div>
+          <div style={{ fontSize: "13px", color: "var(--ink2)", lineHeight: 1.7, marginBottom: "16px" }}>
+            题库由官方维护。管理员可在 <span style={{ color: "var(--ink)", fontWeight: 600 }}>管理后台 → 批量导入</span> 中导入题库（支持 JSON 信封，详见 <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "12.5px", color: "var(--ink)" }}>docs/CONTENT-FORMAT.md</span>）。
+          </div>
+          <a href="/admin/import" style={{ ...ghostBtn, display: "inline-flex", alignItems: "center", gap: "8px", textDecoration: "none" }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+            管理员入口
+          </a>
+        </div>
+      </div>
+    );
+  }
+
   const onFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (f) v.qbankOnFile(f);
