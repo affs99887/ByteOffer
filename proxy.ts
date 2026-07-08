@@ -89,14 +89,15 @@ export default auth((req) => {
   }
 
   // The authed app now lives at /app (the root `/` is the public marketing landing). Bounce
-  // anonymous visitors to /login before the RSC even runs. `/` (landing), /demo, /pricing and the
-  // /(auth) pages stay public. (requireX() in services remains the real boundary — this is UX only.)
+  // anonymous visitors to /login before the RSC even runs. `/` (landing), /pricing and the
+  // /(auth) pages stay public — there is NO anonymous product access (the /demo route was removed;
+  // login is required to use the app). (requireX() in services remains the real boundary — UX only.)
   if ((p === "/app" || p.startsWith("/app/")) && !isLoggedIn) {
     return withSecurityHeaders(NextResponse.redirect(new URL("/login", req.nextUrl)));
   }
 
   // Logged-in users have no business on the auth entry pages — bounce them into the app.
-  // /demo + /reset + /verify + /pricing + `/` (landing) are public and unaffected.
+  // /reset + /verify + /pricing + `/` (landing) are public and unaffected.
   if (isLoggedIn && (p === "/login" || p === "/register")) {
     return withSecurityHeaders(NextResponse.redirect(new URL("/app", req.nextUrl)));
   }

@@ -230,7 +230,7 @@ export default async function LandingPage() {
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <Link href="/demo" style={{ fontSize: "13.5px", fontWeight: 600, color: "var(--ink2)", textDecoration: "none", padding: "8px 4px" }} className="bo-navlink">试用 Demo</Link>
+            <Link href="/pricing" style={{ fontSize: "13.5px", fontWeight: 600, color: "var(--ink2)", textDecoration: "none", padding: "8px 4px" }} className="bo-navlink">定价</Link>
             {authed ? (
               <Link href="/app" style={navBtnPrimary}>进入应用 {arrow}</Link>
             ) : (
@@ -307,9 +307,11 @@ export default async function LandingPage() {
               {authed ? (
                 <Link href="/app" style={primaryBtn}>进入应用 {arrow}</Link>
               ) : (
-                <Link href="/register" style={primaryBtn}>免费开始 {arrow}</Link>
+                <>
+                  <Link href="/register" style={primaryBtn}>免费开始 {arrow}</Link>
+                  <Link href="/login" style={ghostBtnDark}>登录 {arrow}</Link>
+                </>
               )}
-              <Link href="/demo" style={ghostBtnDark}>体验 Demo {arrow}</Link>
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "22px", marginTop: "40px" }}>
               {[
@@ -486,14 +488,16 @@ export default async function LandingPage() {
             <h2 style={{ fontFamily: "var(--font-space-grotesk),'PingFang SC','Microsoft YaHei','Source Han Sans SC',sans-serif", fontWeight: 700, letterSpacing: "-.02em", fontSize: "clamp(24px, 3.4vw, 36px)", color: "#fff", margin: 0 }}>
               今天就开始刷题，向 Offer 更近一步
             </h2>
-            <p style={{ fontSize: "15px", color: "#AEB6C7", margin: "14px auto 0", maxWidth: "520px", lineHeight: 1.7 }}>免费注册即可开始，或先用 Demo 体验完整流程。</p>
+            <p style={{ fontSize: "15px", color: "#AEB6C7", margin: "14px auto 0", maxWidth: "520px", lineHeight: 1.7 }}>免费注册，即刻开始刷题——无限练习、全部题库、模拟考试全部免费。</p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "14px", justifyContent: "center", marginTop: "28px" }}>
               {authed ? (
                 <Link href="/app" style={primaryBtn}>进入应用 {arrow}</Link>
               ) : (
-                <Link href="/register" style={primaryBtn}>免费开始 {arrow}</Link>
+                <>
+                  <Link href="/register" style={primaryBtn}>免费开始 {arrow}</Link>
+                  <Link href="/login" style={ghostBtnDark}>登录 {arrow}</Link>
+                </>
               )}
-              <Link href="/demo" style={ghostBtnDark}>体验 Demo {arrow}</Link>
             </div>
           </div>
         </div>
@@ -525,7 +529,6 @@ export default async function LandingPage() {
               ["登录", "/login"],
               ["注册", "/register"],
               ["定价", "/pricing"],
-              ["Demo", "/demo"],
               ["隐私政策", "/privacy"],
               ["服务条款", "/terms"],
             ].map(([label, href]) => (

@@ -129,7 +129,6 @@ npm run build && npm start
 ```
 
 ### No-database smoke demo
-[`/demo`](http://localhost:3000/demo) renders the full app shell with the built-in 13-type sample
 envelope + local grading and **requires no database** — useful for a quick visual/CSP smoke test.
 (Everything else that touches accounts, persistence, or billing needs a real Postgres. DB-dependent
 end-to-end testing therefore requires a running database.)
@@ -155,7 +154,7 @@ end-to-end testing therefore requires a running database.)
 ## Project layout
 
 ```
-app/                     # App Router: (marketing) (auth) (app) (admin) + api/*  + /demo
+app/                     # App Router: (marketing) (auth) (app) (admin) + api/* 
 components/              # sidebar / main-area / headers / screens/* (design, preserved) + qbank/admin/billing
 lib/
   qbank/                 # pure isomorphic kernel: types, enums, grade, validate, migrate, serialize, seed
