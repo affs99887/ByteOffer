@@ -1,9 +1,54 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useApp } from "@/lib/app-context";
 
 export function MobileDrawer() {
   const v = useApp();
+  // AUTHED → the kernel's 6-item V2 set (v.mobileItems). DEMO → rebuild today's 8-item nav from v.nav
+  // (v.mobileItems is now the authed set, so the demo drawer needs its own list to avoid regressing).
+  // The row/bar styling mirrors the kernel's mobileItems exactly so both modes look identical.
+  const demoItems: { label: string; go: () => void; rowStyle: CSSProperties; bar: CSSProperties }[] = (
+    [
+      ["首页", v.nav.home],
+      ["刷题", v.nav.practice],
+      ["模拟面试", v.nav.interview],
+      ["错题本", v.nav.wrongbook],
+      ["收藏夹", v.nav.favorites],
+      ["题库", v.nav.qbank],
+      ["数据统计", v.nav.stats],
+      ["设置", v.nav.settings],
+    ] as const
+  ).map(([label, n]) => {
+    const on = n.active;
+    return {
+      label,
+      go: () => {
+        n.go();
+        v.closeNav();
+      },
+      rowStyle: {
+        display: "flex",
+        alignItems: "center",
+        gap: "10px",
+        padding: "11px 12px",
+        borderRadius: "9px",
+        cursor: "pointer",
+        fontSize: "14.5px",
+        fontWeight: on ? 700 : 500,
+        color: on ? "var(--pri)" : "var(--ink)",
+        background: on ? "var(--pri-w)" : "transparent",
+      },
+      bar: {
+        width: "3px",
+        height: "16px",
+        borderRadius: "2px",
+        background: on ? "var(--pri)" : "transparent",
+        flex: "none",
+      },
+    };
+  });
+  const items = v.authed ? v.mobileItems : demoItems;
   return (
     <div className={v.drawerOpenCls} style={{ display: "none", position: "fixed", inset: 0, zIndex: 70 }}>
       <div onClick={v.closeNav} className="bo-backdrop" style={{ position: "absolute", inset: 0, background: "rgba(8,10,16,.5)" }} />
@@ -23,7 +68,7 @@ export function MobileDrawer() {
             </svg>
           </div>
         </div>
-        {v.mobileItems.map((m) => (
+        {items.map((m) => (
           <div key={m.label} style={m.rowStyle} onClick={m.go}>
             <span style={m.bar} />
             {m.label}

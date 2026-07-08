@@ -162,6 +162,15 @@ function UserMenu({ variant }: { variant: "full" | "compact" }) {
               <div style={{ fontSize: "11px", color: "var(--ink3)", marginTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{v.user?.email}</div>
             )}
           </div>
+          {/* Admin-only entry (§G) — top of the dropdown, real <a href="/admin">. Non-admins never see it. */}
+          {v.isAdmin && (
+            <>
+              <MenuItem href="/admin" onClick={() => setOpen(false)}>
+                管理后台 →
+              </MenuItem>
+              <div style={{ height: "1px", background: "var(--line)", margin: "5px 6px" }} />
+            </>
+          )}
           <MenuItem
             onClick={() => {
               setOpen(false);
@@ -255,12 +264,27 @@ export function TopNav() {
           <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: "18px", fontWeight: 700, color: "var(--ink)", letterSpacing: ".2px" }}>ByteOffer</div>
         </div>
         <nav className="bo-hide-m" style={{ display: "flex", alignItems: "stretch", height: "100%" }}>
-          <TopLink label="首页" active={v.nav.home.active} onClick={v.nav.home.go} />
-          <TopLink label="刷题" active={v.nav.practice.active} onClick={v.nav.practice.go} />
-          <TopLink label="模拟面试" active={v.nav.interview.active} onClick={v.nav.interview.go} />
-          <TopLink label="错题本" active={v.nav.wrongbook.active} onClick={v.nav.wrongbook.go} />
-          <TopLink label="收藏夹" active={v.nav.favorites.active} onClick={v.nav.favorites.go} />
-          <TopLink label="数据统计" active={v.nav.stats.active} onClick={v.nav.stats.go} />
+          {v.authed ? (
+            // AUTHED (§B): 6-item V2 set — 刷题/模拟面试 merged into the 题库 hub (session lit as 题库).
+            <>
+              <TopLink label="首页" active={v.nav.home.active} onClick={v.nav.home.go} />
+              <TopLink label="题库" active={v.nav.qbank.active} onClick={v.nav.qbank.go} />
+              <TopLink label="错题本" active={v.nav.wrongbook.active} onClick={v.nav.wrongbook.go} />
+              <TopLink label="收藏夹" active={v.nav.favorites.active} onClick={v.nav.favorites.go} />
+              <TopLink label="数据统计" active={v.nav.stats.active} onClick={v.nav.stats.go} />
+              <TopLink label="设置" active={v.nav.settings.active} onClick={v.nav.settings.go} />
+            </>
+          ) : (
+            // DEMO — frozen marketing showcase: keep today's nav exactly (do not drop anything).
+            <>
+              <TopLink label="首页" active={v.nav.home.active} onClick={v.nav.home.go} />
+              <TopLink label="刷题" active={v.nav.practice.active} onClick={v.nav.practice.go} />
+              <TopLink label="模拟面试" active={v.nav.interview.active} onClick={v.nav.interview.go} />
+              <TopLink label="错题本" active={v.nav.wrongbook.active} onClick={v.nav.wrongbook.go} />
+              <TopLink label="收藏夹" active={v.nav.favorites.active} onClick={v.nav.favorites.go} />
+              <TopLink label="数据统计" active={v.nav.stats.active} onClick={v.nav.stats.go} />
+            </>
+          )}
         </nav>
         <div style={{ flex: 1 }} />
         <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>

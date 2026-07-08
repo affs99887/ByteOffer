@@ -9,6 +9,9 @@ import { WrongbookScreen } from "./screens/wrongbook";
 import { StatsScreen } from "./screens/stats";
 import { SettingsScreen } from "./screens/settings";
 import { QbankScreen } from "./screens/qbank";
+// V2: the unified answering screen (刷题 practice + 模拟面试 exam both run here). Created by a sibling
+// agent this stage under components/screens/session — the import resolves at the barrier.
+import { SessionScreen } from "./screens/session";
 
 export function MainArea() {
   const v = useApp();
@@ -34,6 +37,8 @@ export function MainArea() {
         {v.isWrong && <WrongbookScreen />}
         {v.isStats && <StatsScreen />}
         {v.isQbank && <QbankScreen />}
+        {/* V2 unified session — launched from the 题库 hub / 错题本 / 收藏夹 (or resumed exam). */}
+        {v.isSession && <SessionScreen />}
         {v.isSettings && <SettingsScreen />}
       </div>
     </main>
