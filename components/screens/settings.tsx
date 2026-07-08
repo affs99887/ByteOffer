@@ -36,12 +36,12 @@ export function SettingsScreen() {
   const [pwOk, setPwOk] = useState<string | null>(null);
   const [pendingPw, startPw] = useTransition();
 
-  // Real identity from initialData.user (via context). Authed users with no nickname fall back to
-  // their email (matching the header) — never the demo persona; the persona literal stays demo-only.
-  const displayName = savedName || v.user?.name || (v.authed ? v.user?.email || "未设置昵称" : "前端小白");
-  const email = v.user?.email || (v.authed ? "—" : "frontend@byteoffer.dev");
+  // Real identity from initialData.user (via context). Users with no nickname fall back to
+  // their email (matching the header).
+  const displayName = savedName || v.user?.name || v.user?.email || "未设置昵称";
+  const email = v.user?.email || "—";
   const tier = v.entitlement?.tier;
-  const avatarChar = (displayName || (v.authed ? "用" : "白")).trim().charAt(0) || (v.authed ? "用" : "白");
+  const avatarChar = (displayName || "用").trim().charAt(0) || "用";
 
   function saveProfile() {
     const next = name.trim();
@@ -115,7 +115,7 @@ export function SettingsScreen() {
         {editing ? (
           <button onClick={saveProfile} disabled={pendingSave} style={{ background: 'var(--pri)', border: '1px solid var(--pri)', color: '#fff', borderRadius: '8px', padding: '9px 16px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', opacity: pendingSave ? 0.7 : 1 }}>{pendingSave ? "保存中…" : "保存"}</button>
         ) : (
-          <button onClick={() => { setName(displayName === "前端小白" ? "" : displayName); setEditing(true); }} style={{ background: 'var(--surface)', border: '1px solid var(--line)', color: 'var(--ink)', borderRadius: '8px', padding: '9px 16px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>编辑资料</button>
+          <button onClick={() => { setName(displayName); setEditing(true); }} style={{ background: 'var(--surface)', border: '1px solid var(--line)', color: 'var(--ink)', borderRadius: '8px', padding: '9px 16px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>编辑资料</button>
         )}
       </div>
 

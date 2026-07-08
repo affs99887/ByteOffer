@@ -3,8 +3,6 @@
 import { useApp } from "@/lib/app-context";
 import { AppHeader, TopNav } from "./headers";
 import { HomeScreen } from "./screens/home";
-import { PracticeScreen } from "./screens/practice";
-import { ExamScreen } from "./screens/exam";
 import { WrongbookScreen } from "./screens/wrongbook";
 import { StatsScreen } from "./screens/stats";
 import { SettingsScreen } from "./screens/settings";
@@ -32,8 +30,6 @@ export function MainArea() {
         }}
       >
         {v.isHome && <HomeScreen />}
-        {v.isPractice && <PracticeScreen />}
-        {v.isExam && <ExamScreen />}
         {v.isWrong && <WrongbookScreen />}
         {v.isStats && <StatsScreen />}
         {v.isQbank && <QbankScreen />}

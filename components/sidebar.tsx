@@ -28,21 +28,6 @@ const icons: Record<string, IconFn> = {
         <path d="M6 10.2V19h12v-8.8" />
       </>
     )),
-  practice: (sw) =>
-    svg(sw, (
-      <>
-        <rect x="5" y="4" width="14" height="17" rx="2.5" />
-        <path d="M9 4.2h6v2.6H9z" />
-        <path d="M8.5 12.5l2 2 4-4" />
-      </>
-    )),
-  interview: (sw) =>
-    svg(sw, (
-      <>
-        <path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H9l-4 4z" />
-        <path d="M8.5 9h7M8.5 12h4" />
-      </>
-    )),
   wrongbook: (sw) =>
     svg(sw, (
       <>
@@ -174,40 +159,19 @@ export function Sidebar() {
       <div style={{ height: "1px", background: "var(--rail-border)", margin: "0 16px" }} />
 
       <nav style={{ flex: 1, padding: "12px 12px", overflowY: "auto", overflowX: "hidden" }}>
-        {v.authed ? (
-          // AUTHED (§B): 6-item V2 set. 刷题/模拟面试 merged into the 题库 hub → a launched session
-          // keeps 题库 lit. ⌘1..⌘6 map to the kernel shortcut order [home,qbank,wrongbook,favorites,stats,settings].
-          <>
-            <SectionLabel>// 练习</SectionLabel>
-            <NavItem icon={icons.home} label="首页" kbd="⌘1" active={v.nav.home.active} onClick={v.nav.home.go} />
-            <NavItem icon={icons.qbank} label="题库" kbd="⌘2" active={v.nav.qbank.active} onClick={v.nav.qbank.go} />
+        {/* 6-item V2 set. 刷题/模拟面试 merged into the 题库 hub → a launched session
+            keeps 题库 lit. ⌘1..⌘6 map to the kernel shortcut order [home,qbank,wrongbook,favorites,stats,settings]. */}
+        <SectionLabel>// 练习</SectionLabel>
+        <NavItem icon={icons.home} label="首页" kbd="⌘1" active={v.nav.home.active} onClick={v.nav.home.go} />
+        <NavItem icon={icons.qbank} label="题库" kbd="⌘2" active={v.nav.qbank.active} onClick={v.nav.qbank.go} />
 
-            <SectionLabel pt="16px">// 复习</SectionLabel>
-            <NavItem icon={icons.wrongbook} label="错题本" kbd="⌘3" active={v.nav.wrongbook.active} onClick={v.nav.wrongbook.go} />
-            <NavItem icon={icons.favorites} label="收藏夹" kbd="⌘4" active={v.nav.favorites.active} onClick={v.nav.favorites.go} />
+        <SectionLabel pt="16px">// 复习</SectionLabel>
+        <NavItem icon={icons.wrongbook} label="错题本" kbd="⌘3" active={v.nav.wrongbook.active} onClick={v.nav.wrongbook.go} />
+        <NavItem icon={icons.favorites} label="收藏夹" kbd="⌘4" active={v.nav.favorites.active} onClick={v.nav.favorites.go} />
 
-            <SectionLabel pt="16px">// 成长</SectionLabel>
-            <NavItem icon={icons.stats} label="数据统计" kbd="⌘5" active={v.nav.stats.active} onClick={v.nav.stats.go} />
-            <NavItem icon={icons.settings} label="设置" kbd="⌘6" active={v.nav.settings.active} onClick={v.nav.settings.go} />
-          </>
-        ) : (
-          // DEMO — frozen marketing showcase: keep today's 8-item nav exactly (⌘1..⌘8).
-          <>
-            <SectionLabel>// 练习</SectionLabel>
-            <NavItem icon={icons.home} label="首页" kbd="⌘1" active={v.nav.home.active} onClick={v.nav.home.go} />
-            <NavItem icon={icons.practice} label="刷题" kbd="⌘2" active={v.nav.practice.active} onClick={v.nav.practice.go} />
-            <NavItem icon={icons.interview} label="模拟面试" kbd="⌘3" active={v.nav.interview.active} onClick={v.nav.interview.go} />
-
-            <SectionLabel pt="16px">// 复习</SectionLabel>
-            <NavItem icon={icons.wrongbook} label="错题本" kbd="⌘4" active={v.nav.wrongbook.active} onClick={v.nav.wrongbook.go} />
-            <NavItem icon={icons.favorites} label="收藏夹" kbd="⌘5" active={v.nav.favorites.active} onClick={v.nav.favorites.go} />
-            <NavItem icon={icons.qbank} label="题库" kbd="⌘6" active={v.nav.qbank.active} onClick={v.nav.qbank.go} />
-
-            <SectionLabel pt="16px">// 成长</SectionLabel>
-            <NavItem icon={icons.stats} label="数据统计" kbd="⌘7" active={v.nav.stats.active} onClick={v.nav.stats.go} />
-            <NavItem icon={icons.settings} label="设置" kbd="⌘8" active={v.nav.settings.active} onClick={v.nav.settings.go} />
-          </>
-        )}
+        <SectionLabel pt="16px">// 成长</SectionLabel>
+        <NavItem icon={icons.stats} label="数据统计" kbd="⌘5" active={v.nav.stats.active} onClick={v.nav.stats.go} />
+        <NavItem icon={icons.settings} label="设置" kbd="⌘6" active={v.nav.settings.active} onClick={v.nav.settings.go} />
       </nav>
 
       {v.showArt && (
@@ -221,11 +185,11 @@ export function Sidebar() {
               </span>
             </div>
             <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
-              <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "24px", fontWeight: 700, color: "var(--rail-strong)", lineHeight: 1 }}>{v.authed ? v.statStreak : 18}</span>
-              <span style={{ fontSize: "11px", color: "var(--rail-fg)" }}>天 · 今日目标 {v.authed ? v.statTodayLive : 56}/{v.authed ? v.statGoal : 60}</span>
+              <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: "24px", fontWeight: 700, color: "var(--rail-strong)", lineHeight: 1 }}>{v.statStreak}</span>
+              <span style={{ fontSize: "11px", color: "var(--rail-fg)" }}>天 · 今日目标 {v.statTodayLive}/{v.statGoal}</span>
             </div>
             <div style={{ height: "4px", background: "var(--rail-wbd)", borderRadius: "3px", marginTop: "11px", overflow: "hidden" }}>
-              <div style={{ width: `${v.authed ? v.statTodayGoalPct : 93}%`, height: "100%", background: "var(--pri)", borderRadius: "3px" }} />
+              <div style={{ width: `${v.statTodayGoalPct}%`, height: "100%", background: "var(--pri)", borderRadius: "3px" }} />
             </div>
           </div>
         </div>

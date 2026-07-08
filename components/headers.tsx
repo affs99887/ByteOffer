@@ -47,9 +47,8 @@ const Burger = ({ onClick }: { onClick: () => void }) => (
 );
 
 // ---------- account dropdown (shared by AppHeader + TopNav) ----------
-// A real menu replacing the old dead cursor:pointer avatar. Identity is authed-gated: in the authed
-// app it shows the signed-in user's real name / first-initial (never a fabricated persona); on the
-// public /demo (authed=false) it keeps the intentional showcase persona 前端小白 / 白.
+// A real menu replacing the old dead cursor:pointer avatar. It shows the signed-in user's real
+// name / first-initial (never a fabricated persona).
 
 const menuRowStyle: CSSProperties = {
   display: "flex",
@@ -113,11 +112,11 @@ function UserMenu({ variant }: { variant: "full" | "compact" }) {
   const [pendingLogout, startLogout] = useTransition();
   const rootRef = useRef<HTMLDivElement>(null);
 
-  // Authed: real identity (email fallback, then a defensive 未登录). Demo: keep the showcase persona.
-  const name = v.authed ? (v.user?.name ?? v.user?.email ?? "未登录") : "前端小白";
-  const initial = v.authed ? ((v.user?.name ?? "").trim().charAt(0) || "用") : "白";
+  // Real identity (email fallback, then a defensive 未登录).
+  const name = v.user?.name ?? v.user?.email ?? "未登录";
+  const initial = (v.user?.name ?? "").trim().charAt(0) || "用";
   const sz = variant === "full" ? "36px" : "34px";
-  const showEmail = v.authed && !!v.user?.name && !!v.user?.email;
+  const showEmail = !!v.user?.name && !!v.user?.email;
 
   // Outside-click / Escape close (simple, self-contained).
   useEffect(() => {
@@ -264,27 +263,13 @@ export function TopNav() {
           <div style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: "18px", fontWeight: 700, color: "var(--ink)", letterSpacing: ".2px" }}>ByteOffer</div>
         </div>
         <nav className="bo-hide-m" style={{ display: "flex", alignItems: "stretch", height: "100%" }}>
-          {v.authed ? (
-            // AUTHED (§B): 6-item V2 set — 刷题/模拟面试 merged into the 题库 hub (session lit as 题库).
-            <>
-              <TopLink label="首页" active={v.nav.home.active} onClick={v.nav.home.go} />
-              <TopLink label="题库" active={v.nav.qbank.active} onClick={v.nav.qbank.go} />
-              <TopLink label="错题本" active={v.nav.wrongbook.active} onClick={v.nav.wrongbook.go} />
-              <TopLink label="收藏夹" active={v.nav.favorites.active} onClick={v.nav.favorites.go} />
-              <TopLink label="数据统计" active={v.nav.stats.active} onClick={v.nav.stats.go} />
-              <TopLink label="设置" active={v.nav.settings.active} onClick={v.nav.settings.go} />
-            </>
-          ) : (
-            // DEMO — frozen marketing showcase: keep today's nav exactly (do not drop anything).
-            <>
-              <TopLink label="首页" active={v.nav.home.active} onClick={v.nav.home.go} />
-              <TopLink label="刷题" active={v.nav.practice.active} onClick={v.nav.practice.go} />
-              <TopLink label="模拟面试" active={v.nav.interview.active} onClick={v.nav.interview.go} />
-              <TopLink label="错题本" active={v.nav.wrongbook.active} onClick={v.nav.wrongbook.go} />
-              <TopLink label="收藏夹" active={v.nav.favorites.active} onClick={v.nav.favorites.go} />
-              <TopLink label="数据统计" active={v.nav.stats.active} onClick={v.nav.stats.go} />
-            </>
-          )}
+          {/* 6-item V2 set — 刷题/模拟面试 merged into the 题库 hub (session lit as 题库). */}
+          <TopLink label="首页" active={v.nav.home.active} onClick={v.nav.home.go} />
+          <TopLink label="题库" active={v.nav.qbank.active} onClick={v.nav.qbank.go} />
+          <TopLink label="错题本" active={v.nav.wrongbook.active} onClick={v.nav.wrongbook.go} />
+          <TopLink label="收藏夹" active={v.nav.favorites.active} onClick={v.nav.favorites.go} />
+          <TopLink label="数据统计" active={v.nav.stats.active} onClick={v.nav.stats.go} />
+          <TopLink label="设置" active={v.nav.settings.active} onClick={v.nav.settings.go} />
         </nav>
         <div style={{ flex: 1 }} />
         <div style={{ display: "flex", alignItems: "center", gap: "9px" }}>

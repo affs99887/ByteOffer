@@ -4,13 +4,13 @@ import { useApp } from "@/lib/app-context";
 export function WrongbookScreen() {
   const v = useApp();
   // V2 (§E): review-launch copy. wbReviewMode ("wrong"|"favorites") picks the noun; the active chapter
-  // (v.wbChapter) narrows the scope in the hint. Both are AUTHED-only surfaces (demo keeps today's UI).
+  // (v.wbChapter) narrows the scope in the hint.
   const reviewNoun = v.wbReviewMode === "favorites" ? "收藏" : "错题";
   const reviewTitle = v.wbReviewMode === "favorites" ? "收藏复习" : "错题复习";
   const reviewHint = v.wbChapter ? `将复习「${v.wbChapter}」的${reviewNoun}` : `将复习全部${reviewNoun}`;
   // V2 (§E): the chapter filter is shown on 错题本/收藏夹 (never 最近练习) once the tree has real chapters.
-  const showChapterFilter = v.authed && !v.wbIsRecent && v.wbChapterOptions.length > 1;
-  const showReview = v.authed && v.wbCanReview;
+  const showChapterFilter = !v.wbIsRecent && v.wbChapterOptions.length > 1;
+  const showReview = v.wbCanReview;
 
   return (
     <div data-screen-label="错题本 收藏夹" className="bo-enter" style={{ maxWidth: '1000px', margin: '0 auto' }}>
@@ -31,7 +31,7 @@ export function WrongbookScreen() {
         </div>
       </div>
 
-      {/* V2 CHAPTER FILTER (§E) — authed only, above the list on 错题本/收藏夹. Clicking go() refetches the
+      {/* V2 CHAPTER FILTER (§E) — above the list on 错题本/收藏夹. Clicking go() refetches the
           list narrowed to that chapter AND rescopes the review launch. Mirrors the practice tag-chip style. */}
       {showChapterFilter && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '18px' }}>
@@ -63,7 +63,7 @@ export function WrongbookScreen() {
         </div>
       )}
 
-      {/* V2 REVIEW LAUNCH (§E) — authed only, on 错题本/收藏夹 when the current scope has rows. Launches ONE
+      {/* V2 REVIEW LAUNCH (§E) — on 错题本/收藏夹 when the current scope has rows. Launches ONE
           frozen session over the tab scope (wrong/favorites) honoring the active chapter filter. */}
       {showReview && (
         <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: '12px', padding: '16px 20px', marginBottom: '18px' }}>
@@ -112,13 +112,11 @@ export function WrongbookScreen() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '9px', marginBottom: '12px' }}>
               <span style={it.typeChip}>{it.type}</span>
               <span style={it.diffChip.style}><span style={it.diffChip.dot}></span>{it.diffChip.label}</span>
-              {/* V2 (§E): 章 · 节 breadcrumb (authed only; demo rows have no chapter/section). */}
-              {v.authed && (
-                <span title={it.chapterSection} style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: '5px', maxWidth: '55%', fontSize: '12px', fontWeight: 500, color: 'var(--ink3)', overflow: 'hidden' }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none' }}><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.chapterSection}</span>
-                </span>
-              )}
+              {/* V2 (§E): 章 · 节 breadcrumb. */}
+              <span title={it.chapterSection} style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: '5px', maxWidth: '55%', fontSize: '12px', fontWeight: 500, color: 'var(--ink3)', overflow: 'hidden' }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flex: 'none' }}><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.chapterSection}</span>
+              </span>
             </div>
             <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--ink)', lineHeight: 1.5, marginBottom: '13px' }}>{it.q}</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px', marginBottom: '16px' }}>
@@ -140,7 +138,7 @@ export function WrongbookScreen() {
         ))}
       </div>
 
-      {/* EMPTY STATE — authed honest empty per tab (demo lists fall back to sample rows, never empty) */}
+      {/* EMPTY STATE — honest empty per tab */}
       {v.wbEmpty && !v.wbLoading && !v.wbError && (
         <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: '12px', padding: '48px 22px', textAlign: 'center', color: 'var(--ink3)', fontSize: '14px' }}>
           {v.wbIsWrong ? '暂无错题，保持下去！' : v.wbIsFav ? '还没有收藏题目' : '暂无练习记录'}
@@ -152,10 +150,9 @@ export function WrongbookScreen() {
         <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: '12px', padding: '20px 22px', textAlign: 'center', color: '#D63C31', fontSize: '13.5px' }}>加载失败，请稍后重试</div>
       )}
 
-      {/* PAGINATION — demo page buttons (empty in authed) + authed cursor 「加载更多」 */}
-      {(v.pages.length > 0 || v.wbHasMore || v.wbLoading) && (
+      {/* PAGINATION — cursor 「加载更多」 */}
+      {(v.wbHasMore || v.wbLoading) && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '24px' }}>
-          {v.pages.map((p, i) => (<div key={i} style={p.style} onClick={p.go}>{p.n}</div>))}
           {v.wbHasMore && (
             <button onClick={v.wbLoadMore} disabled={v.wbLoading} style={{ background: 'var(--surface)', border: '1px solid var(--line)', color: 'var(--ink)', borderRadius: '8px', padding: '9px 18px', fontSize: '13px', fontWeight: 600, cursor: v.wbLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', opacity: v.wbLoading ? 0.6 : 1 }}>{v.wbLoading ? '加载中…' : '加载更多'}</button>
           )}
