@@ -95,6 +95,11 @@ export interface QuestionRowInput {
   status?: QuestionStatus;
   stemText: string;
   tagsFlat: string[];
+  // Denormalized browse-tree mirror columns (same spirit as stemText/tagsFlat). Always emitted so
+  // the write is deterministic: `null` when the record declares no chapter/section (groups under
+  // 未分类) — a re-import/re-seed therefore keeps the mirror in sync with the payload.
+  chapter: string | null;
+  section: string | null;
   payload: Prisma.InputJsonValue;
   schemaVersion: number;
   authorId?: string;
@@ -120,6 +125,9 @@ export function questionRowFromRecord(
     gradingClass: effectiveClass(rec),
     stemText: plainStem(rec.stem),
     tagsFlat: rec.tags,
+    // Mirror the (already validated/trimmed) browse-tree display strings; null = 未分类.
+    chapter: rec.chapter ?? null,
+    section: rec.section ?? null,
     payload: rec as unknown as Prisma.InputJsonValue,
     schemaVersion: SCHEMA_VERSION,
   };

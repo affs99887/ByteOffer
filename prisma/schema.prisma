@@ -11,7 +11,7 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL") // pooled (PgBouncer) for the app
-  directUrl = env("DIRECT_URL")   // non-pooled for migrations
+  directUrl = env("DIRECT_URL") // non-pooled for migrations
 }
 
 // ============================================================
@@ -123,6 +123,7 @@ model User {
   wrongEntries      WrongbookEntry[]
   subscription      Subscription?
   entitlement       Entitlement?
+  preference        UserPreference?
   events            AnalyticsEvent[]
   dailyStats        DailyUserStat[]
   authoredQuestions Question[]       @relation("AuthoredBy")
@@ -172,6 +173,24 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// ============================================================
+//  User UI preferences (persisted shell settings — replaces localStorage)
+// ============================================================
+/// One row per user (userId is the PK). Persists the UI-shell preferences that previously lived in
+/// localStorage — layout (sidebar/top), app + sidebar theme, and the daily practice goal — so they
+/// follow the account across devices. Written by the settings screen; read on shell bootstrap. All
+/// columns carry sane defaults, so a missing row (never-customized user) reads as the defaults.
+model UserPreference {
+  userId    String   @id
+  layout    String   @default("sidebar") // shell layout: "sidebar" | "top"
+  appTheme  String   @default("light") // main app theme: "light" | "dark"
+  sbTheme   String   @default("dark") // sidebar theme: "light" | "dark"
+  dailyGoal Int      @default(30) // questions/day target for the streak ring
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // ============================================================
@@ -227,17 +246,19 @@ model QuestionTag {
 /// One row per QuestionRecord. `payload` is the 1:1 JSONB mirror of the interchange record;
 /// the mirror columns are the query surface.
 model Question {
-  id         String @id // author-stable id (provided at import)
+  id         String  @id // author-stable id (provided at import)
   bankId     String
   categoryId String?
 
   // ---- promoted mirror columns (filter/sort/search surface) ----
-  type          QuestionType
-  difficulty    Difficulty     @default(medium)
-  gradingClass  GradingClass // = effectiveClass(record), recomputed on every write
-  status        QuestionStatus @default(draft)
-  stemText      String         @db.Text // plain text for list/search; authoritative stem in payload
-  tagsFlat      String[]       @default([]) // denormalized tag slugs; GIN index via raw SQL
+  type         QuestionType
+  difficulty   Difficulty     @default(medium)
+  gradingClass GradingClass // = effectiveClass(record), recomputed on every write
+  status       QuestionStatus @default(draft)
+  stemText     String         @db.Text // plain text for list/search; authoritative stem in payload
+  tagsFlat     String[]       @default([]) // denormalized tag slugs; GIN index via raw SQL
+  chapter      String? // denormalized 章节 display name (browse-tree top level); null groups under 未分类
+  section      String? // denormalized 小节 display name (browse-tree second level); null = section 未分类
 
   // ---- authoritative record ----
   payload       Json // JSONB: the full QuestionRecord
@@ -257,16 +278,17 @@ model Question {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   publishedAt DateTime?
+  // Raw SQL migration appends:
+  //   CHECK (payload->>'type' = type::text)
+  //   GIN (payload jsonb_path_ops)
+  //   GIN (tagsFlat)
 
   @@index([bankId, status])
   @@index([type])
   @@index([difficulty])
   @@index([status, difficulty, type]) // covers practice filtering
+  @@index([status, chapter, section]) // covers the 章节→小节 browse-tree scoping
   @@index([gradingClass])
-  // Raw SQL migration appends:
-  //   CHECK (payload->>'type' = type::text)
-  //   GIN (payload jsonb_path_ops)
-  //   GIN (tagsFlat)
 }
 
 // ============================================================

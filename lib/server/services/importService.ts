@@ -157,6 +157,8 @@ export async function confirm(batchId: string, adminId: string): Promise<Confirm
                 gradingClass: row.gradingClass,
                 stemText: row.stemText,
                 tagsFlat: row.tagsFlat,
+                chapter: row.chapter,
+                section: row.section,
                 payload: row.payload,
                 schemaVersion: row.schemaVersion,
               },

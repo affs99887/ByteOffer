@@ -28,7 +28,9 @@ import {
   upsertWrongbook,
   emitAnalytics,
 } from "@/lib/server/services/attemptService";
-import type { PracticeFilters } from "@/lib/validation/exam";
+import { favoriteQuestionIds, wrongQuestionIds } from "@/lib/server/services/libraryService";
+import { sessionScopeSchema } from "@/lib/validation/exam";
+import type { PracticeFilters, SessionScope } from "@/lib/validation/exam";
 import type { AttemptStatus, GradingClass, Prisma, QuestionType } from "@prisma/client";
 import type { UserAnswer } from "@/lib/qbank/types";
 
@@ -660,4 +662,379 @@ async function rebuildSubmittedExam(
     });
   }
   return { totalScore: totals.totalScore, maxScore: totals.maxScore, perQuestion };
+}
+
+// ============================================================
+//  Unified SCOPE-based session (V2 — practice/exam merge)
+// ============================================================
+//
+// One engine backs BOTH 刷题 (practice, no timer + immediate per-question feedback) AND 模拟面试
+// (exam, countdown + submit-all-at-end) over any data-driven scope (all published / chapter / section
+// / wrongbook / favorites). Every session is a SHUFFLED, TYPE-CLUSTERED, FROZEN set:
+//   1. gather the published pool ids for the scope (id-only projection — never load a huge scope's
+//      JSONB just to pick 30),
+//   2. Fisher-Yates shuffle the pool and take a random `limit`-sized window,
+//   3. migrate + drop quarantined rows,
+//   4. TYPE-CLUSTER by the CANONICAL order (objective→subjective; shuffled within each type),
+//   5. freeze the ordered ids into a StudySession (exam gets a countdown; the scope JSON is stored in
+//      `filters` so getSessionState rebuilds the label without re-deriving the pool).
+// This is ADDITIVE alongside startPractice/startExam; a later kernel stage migrates callers to it.
+
+// Default exam size when the caller passes no explicit count.
+const DEFAULT_SESSION_EXAM_COUNT = 30;
+// Hard ceiling on a single frozen session (a practice run with no count still never exceeds this).
+const SESSION_HARD_CAP = 100;
+// Small over-fetch when loading payloads so a stray quarantined row rarely forces an extra round-trip.
+const QUARANTINE_BUFFER = 8;
+
+/**
+ * CANONICAL type-cluster order (the answer-card ordering). Objective types first, subjective last, so the flat
+ * 1..N answer card naturally clusters choice→fill→…→subjective. NOTE the deliberate divergence from
+ * the QuestionType *declaration* order: code_writing precedes essay HERE. Groups are concatenated in
+ * this order; within a group the elements keep their (already Fisher-Yates-shuffled) relative order,
+ * so every session BOTH clusters by type AND randomizes within a type.
+ */
+const TYPE_CLUSTER_ORDER: readonly QuestionType[] = [
+  "single_choice",
+  "multiple_choice",
+  "true_false",
+  "fill_blank",
+  "numeric",
+  "code_output",
+  "ordering",
+  "matching",
+  "short_answer",
+  "code_writing",
+  "essay",
+  "scenario",
+  "cloze",
+];
+
+/**
+ * fisherYatesShuffle — an unbiased in-place shuffle on a COPY (never mutates the input). Math.random
+ * is fine here (server code, not a security draw). Deliberately NOT sort-by-random (which is biased);
+ * every call reshuffles so two sessions over the same scope differ.
+ */
+function fisherYatesShuffle<T>(input: readonly T[]): T[] {
+  const a = input.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = a[i];
+    a[i] = a[j];
+    a[j] = tmp;
+  }
+  return a;
+}
+
+/**
+ * typeClusterRecords — stable partition of already-shuffled records into the CANONICAL type order.
+ * Within each type bucket the shuffled relative order is preserved (the within-type order stays
+ * random); unknown types (defensive — should never occur for a migrated record) trail last.
+ */
+function typeClusterRecords(records: readonly QuestionRecord[]): QuestionRecord[] {
+  const buckets = new Map<QuestionType, QuestionRecord[]>();
+  for (const t of TYPE_CLUSTER_ORDER) buckets.set(t, []);
+  const overflow: QuestionRecord[] = [];
+  for (const rec of records) {
+    const bucket = buckets.get(rec.type as QuestionType);
+    if (bucket) bucket.push(rec);
+    else overflow.push(rec);
+  }
+  const out: QuestionRecord[] = [];
+  for (const t of TYPE_CLUSTER_ORDER) out.push(...(buckets.get(t) as QuestionRecord[]));
+  out.push(...overflow);
+  return out;
+}
+
+/** Chinese label for a scope (frozen into the session; getSessionState rebuilds it from `filters`). */
+function scopeToLabel(scope: SessionScope): string {
+  switch (scope.kind) {
+    case "all":
+      return "全部题目";
+    case "chapter":
+      return scope.chapter;
+    case "section":
+      return `${scope.chapter} · ${scope.section}`;
+    case "wrong":
+      return scope.chapter ? `错题复习 · ${scope.chapter}` : "错题复习";
+    case "favorites":
+      return scope.chapter ? `我的收藏 · ${scope.chapter}` : "我的收藏";
+  }
+}
+
+/** Rebuild a scope label from StudySession.filters; generic fallback when it isn't a SessionScope. */
+function labelFromStoredFilters(filters: unknown, isExam: boolean): string {
+  const parsed = sessionScopeSchema.safeParse(filters);
+  if (parsed.success) return scopeToLabel(parsed.data);
+  return isExam ? "模拟面试" : "练习";
+}
+
+/**
+ * gatherScopedIds — the published question ids in a scope, as a lightweight id-only projection (so a
+ * large "all"/chapter pool is never loaded as JSONB just to be shuffled + capped). chapter/section
+ * read the data-driven mirror columns. wrong/favorites delegate to libraryService, which ALREADY
+ * scopes its ids to status:published (and loadCleanRecordsInOrder re-checks published at payload load
+ * as a final guard) — so no redundant re-filter query is needed here. Published-only always. Returns
+ * [] when the scope is empty (the caller turns that into a ValidationError).
+ */
+async function gatherScopedIds(userId: string, scope: SessionScope): Promise<string[]> {
+  if (scope.kind === "wrong") return wrongQuestionIds({ userId, chapter: scope.chapter });
+  if (scope.kind === "favorites") return favoriteQuestionIds({ userId, chapter: scope.chapter });
+
+  const where: Prisma.QuestionWhereInput = { status: "published" };
+  if (scope.kind === "chapter") where.chapter = scope.chapter;
+  if (scope.kind === "section") {
+    where.chapter = scope.chapter;
+    where.section = scope.section;
+  }
+  const rows = await prisma.question.findMany({ where, select: { id: true } });
+  return rows.map((r) => r.id);
+}
+
+/**
+ * loadCleanRecordsInOrder — load payloads for a SHUFFLED id list, migrate, DROP quarantined /
+ * unpublished rows, and return up to `limit` clean records IN the given id order. Loads in windows so
+ * a huge scope never over-fetches: the common (no-quarantine) case resolves in a single query, and a
+ * heavily-quarantined scope keeps loading windows until it has `limit` clean records or runs out.
+ * The published-only re-check defends against a row unpublished after the id was gathered.
+ */
+async function loadCleanRecordsInOrder(
+  orderedIds: readonly string[],
+  limit: number,
+): Promise<QuestionRecord[]> {
+  const clean: QuestionRecord[] = [];
+  let cursor = 0;
+  while (clean.length < limit && cursor < orderedIds.length) {
+    const need = limit - clean.length;
+    const window = orderedIds.slice(cursor, cursor + need + QUARANTINE_BUFFER);
+    cursor += window.length;
+    const rows = await prisma.question.findMany({
+      where: { id: { in: window }, status: "published" },
+    });
+    const byId = new Map(rows.map((row) => [row.id, row] as const));
+    for (const id of window) {
+      const row = byId.get(id);
+      if (!row) continue; // unpublished after gather → skip
+      const rec = recordFromRow(row);
+      if (rec) clean.push(rec);
+      if (clean.length >= limit) break;
+    }
+  }
+  return clean;
+}
+
+export interface StartSessionResult {
+  sessionId: string;
+  mode: "practice" | "exam";
+  /** The frozen question ids in their locked (shuffled + type-clustered) order. */
+  questionIds: string[];
+  /** The frozen questions, key-STRIPPED, in the SAME order as questionIds (1:1). */
+  questions: PublicQuestion[];
+  /** Exam total duration (seconds); null for practice (no timer). */
+  durationSec: number | null;
+  /** Exam seconds remaining at start (= durationSec); null for practice. */
+  remainingSec: number | null;
+  /** Chinese scope label, e.g. "JavaScript · 作用域与闭包" / "全部题目" / "错题复习 · CSS" / "我的收藏". */
+  scopeLabel: string;
+  /** Number of questions in the frozen set (= questionIds.length). */
+  total: number;
+}
+
+/**
+ * startSession — the UNIFIED practice/exam launcher (V2). Derives the published pool from `scope`,
+ * SHUFFLES it (Fisher-Yates), takes a random `count`-sized window (exam default 30; practice defaults
+ * to the whole scope; both hard-capped at 100), migrates + drops quarantined rows, TYPE-CLUSTERS by
+ * the canonical order, and FREEZES the ordered ids into a StudySession. Practice sessions carry no
+ * timer (durationSec/remainingSec null); exam sessions carry the default countdown. The scope JSON is
+ * frozen into `filters` so getSessionState can rebuild the label. Throws ValidationError when the
+ * scope has no published questions. Returns the key-STRIPPED questions in their frozen order.
+ *
+ * Capping is applied to the SHUFFLED pool BEFORE clustering (not to the clustered array) so an exam
+ * is a representative random mix — capping post-cluster would bias every short exam toward whichever
+ * objective types sort first.
+ */
+export async function startSession(params: {
+  userId: string;
+  mode: "practice" | "exam";
+  scope: SessionScope;
+  count?: number;
+}): Promise<StartSessionResult> {
+  const { userId, mode, scope, count } = params;
+  const isExam = mode === "exam";
+
+  // (a) gather the scoped published pool ids (lightweight, id-only).
+  const candidateIds = await gatherScopedIds(userId, scope);
+  if (candidateIds.length === 0) {
+    throw new ValidationError("该范围暂无可用题目", { scope: "范围内没有已发布题目" });
+  }
+
+  // (d) size the frozen set. Exam: count ?? 30. Practice: count ?? whole scope. Both hard-capped and
+  // never larger than the available pool.
+  const requested = isExam
+    ? (count ?? DEFAULT_SESSION_EXAM_COUNT)
+    : (count ?? SESSION_HARD_CAP);
+  const limit = Math.min(requested, SESSION_HARD_CAP, candidateIds.length);
+
+  // (b)+(c) shuffle the whole pool, take a random window, load + migrate + drop quarantined.
+  const shuffledIds = fisherYatesShuffle(candidateIds);
+  const picked = await loadCleanRecordsInOrder(shuffledIds, limit);
+  if (picked.length === 0) {
+    // Every candidate migrated to a quarantined payload — treat as an empty scope.
+    throw new ValidationError("该范围暂无可用题目", { scope: "范围内没有已发布题目" });
+  }
+
+  // (c) type-cluster the picked (already-shuffled) records into the canonical order.
+  const ordered = typeClusterRecords(picked);
+  const orderedIds = ordered.map((r) => r.id);
+
+  // (e) freeze into a StudySession. Exam gets the countdown; practice has null timers. The scope is
+  // stored in `filters` (a clean discriminated shape) for label rebuild in getSessionState.
+  const durationSec = isExam ? DEFAULT_EXAM_DURATION_SEC : null;
+  const session = await prisma.studySession.create({
+    data: {
+      userId,
+      mode,
+      status: "active",
+      bankId: null,
+      filters: scope as unknown as Prisma.InputJsonValue,
+      questionIds: orderedIds,
+      remainingSec: durationSec,
+      durationSec,
+    },
+    select: { id: true },
+  });
+
+  await prisma.analyticsEvent
+    .create({
+      data: {
+        userId,
+        name: "session.started",
+        props: { sessionId: session.id, mode, scope: scope.kind, count: orderedIds.length },
+      },
+    })
+    .catch(() => undefined);
+
+  // (f) return the stripped questions in the frozen order; practice reports null timers.
+  return {
+    sessionId: session.id,
+    mode,
+    questionIds: orderedIds,
+    questions: ordered.map(stripAnswerKey),
+    durationSec,
+    remainingSec: durationSec,
+    scopeLabel: scopeToLabel(scope),
+    total: orderedIds.length,
+  };
+}
+
+export interface SessionStateResult {
+  sessionId: string;
+  mode: "practice" | "exam";
+  status: string;
+  /** The frozen question ids, realigned 1:1 with `questions` (quarantined/unpublished dropped). */
+  questionIds: string[];
+  /** The frozen questions, key-STRIPPED, in the locked order. */
+  questions: PublicQuestion[];
+  /** Saved answers keyed by questionId — exam only (from the ungraded Attempt rows); {} for practice. */
+  answers: Record<string, UserAnswer>;
+  /** Server-authoritative seconds left for exam (monotonic); null for practice. */
+  remainingSec: number | null;
+  /** Exam total duration; null for practice. */
+  durationSec: number | null;
+  /** Chinese scope label, rebuilt from the frozen scope JSON. */
+  scopeLabel: string;
+}
+
+/**
+ * getSessionState — REHYDRATE a frozen unified session for the OWNING user (returns null if the id
+ * isn't theirs / doesn't exist). Powers exam refresh-resume (frozen questions + saved answers +
+ * monotonic countdown) and is returned for practice too (answers {}, timers null) for completeness.
+ * Ownership-scoped via where:{ id, userId } (IDOR kill). Published-only; quarantined rows drop out
+ * and questionIds is realigned to the rendered subset so it stays 1:1 with `questions`.
+ *
+ * remainingSec (exam) is recomputed and kept MONOTONIC: min(stored, durationSec − elapsed), clamped
+ * ≥ 0 — never more time than the deadline allows, never above the last stored value. No grading is
+ * revealed for an active exam (answers are the user's own saved inputs, key-stripped questions only).
+ */
+export async function getSessionState(params: {
+  userId: string;
+  sessionId: string;
+}): Promise<SessionStateResult | null> {
+  const { userId, sessionId } = params;
+
+  const session = await prisma.studySession.findFirst({
+    where: { id: sessionId, userId },
+    select: {
+      id: true,
+      mode: true,
+      status: true,
+      questionIds: true,
+      remainingSec: true,
+      durationSec: true,
+      startedAt: true,
+      filters: true,
+    },
+  });
+  if (!session) return null;
+
+  const isExam = session.mode === "exam";
+
+  // Rehydrate the frozen questions in stored order, key-STRIPPED, published-only. Missing/quarantined
+  // rows drop out; questionIds is rebuilt to match the rendered subset (kept 1:1 with `questions`).
+  const rows = await prisma.question.findMany({
+    where: { id: { in: session.questionIds }, status: "published" },
+  });
+  const strippedById = new Map<string, PublicQuestion>();
+  for (const row of rows) {
+    const rec = recordFromRow(row);
+    if (rec) strippedById.set(row.id, stripAnswerKey(rec));
+  }
+  const questions: PublicQuestion[] = [];
+  const questionIds: string[] = [];
+  for (const qid of session.questionIds) {
+    const q = strippedById.get(qid);
+    if (q) {
+      questions.push(q);
+      questionIds.push(qid);
+    }
+  }
+
+  // Saved answers: exam stashes ungraded Attempt rows per (session,question); practice grades each
+  // submit immediately and stashes nothing on the session, so {} there (latest row per question wins).
+  const answers: Record<string, UserAnswer> = {};
+  if (isExam) {
+    const attempts = await prisma.attempt.findMany({
+      where: { sessionId: session.id, userId },
+      select: { questionId: true, userAnswer: true },
+      orderBy: { createdAt: "asc" },
+    });
+    for (const a of attempts) {
+      answers[a.questionId] = a.userAnswer as unknown as UserAnswer;
+    }
+  }
+
+  // Timers: exam → monotonic min(stored, wall-clock remaining) clamped ≥ 0; practice → null.
+  let remainingSec: number | null = null;
+  let durationSec: number | null = null;
+  if (isExam) {
+    durationSec = session.durationSec ?? DEFAULT_EXAM_DURATION_SEC;
+    const elapsedSec = Math.floor((Date.now() - session.startedAt.getTime()) / 1000);
+    const wallRemaining = Math.max(0, durationSec - elapsedSec);
+    remainingSec =
+      session.remainingSec === null
+        ? wallRemaining
+        : Math.max(0, Math.min(session.remainingSec, wallRemaining));
+  }
+
+  return {
+    sessionId: session.id,
+    mode: session.mode as "practice" | "exam",
+    status: session.status,
+    questionIds,
+    questions,
+    answers,
+    remainingSec,
+    durationSec,
+    scopeLabel: labelFromStoredFilters(session.filters, isExam),
+  };
 }

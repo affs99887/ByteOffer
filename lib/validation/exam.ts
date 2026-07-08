@@ -71,3 +71,56 @@ export const examStateSchema = z
   .object({ sessionId: z.string().min(1).optional() })
   .default({});
 export type ExamStateInput = z.infer<typeof examStateSchema>;
+
+// ============================================================
+//  Unified SCOPE-based session (V2 — practice/exam merge)
+// ============================================================
+
+/**
+ * SessionScope — the data-driven target a unified session runs over (V2 hub). The chapter/section
+ * hub, wrongbook, and favorites all launch a session by declaring one of these; the service derives
+ * the published question pool from it (never a hardcoded chapter list). chapter/section are the
+ * DATA-DRIVEN mirror-column values a question declares — plain content strings (Chinese or ASCII),
+ * not enums. `wrong`/`favorites` optionally narrow to a single chapter.
+ */
+export type SessionScope =
+  | { kind: "all" }
+  | { kind: "chapter"; chapter: string }
+  | { kind: "section"; chapter: string; section: string }
+  | { kind: "wrong"; chapter?: string }
+  | { kind: "favorites"; chapter?: string };
+
+// chapter/section are free-form content (data-driven), bounded 1..80 to keep the where clause and
+// the rebuilt scopeLabel sane. Non-empty so an empty string can never widen a scope to "all".
+const scopeChapter = z.string().min(1).max(80);
+const scopeSection = z.string().min(1).max(80);
+
+/**
+ * sessionScopeSchema — discriminated union on `kind`, 1:1 with SessionScope. Whitelists exactly the
+ * fields each kind needs (an "all" scope carries nothing; a stray chapter on it is rejected), so the
+ * frozen scope stored in StudySession.filters is always a clean, reconstructable shape.
+ */
+export const sessionScopeSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("all") }),
+  z.object({ kind: z.literal("chapter"), chapter: scopeChapter }),
+  z.object({ kind: z.literal("section"), chapter: scopeChapter, section: scopeSection }),
+  z.object({ kind: z.literal("wrong"), chapter: scopeChapter.optional() }),
+  z.object({ kind: z.literal("favorites"), chapter: scopeChapter.optional() }),
+]);
+
+/**
+ * startSessionSchema — launch a unified session. `mode` picks practice (no timer, per-question
+ * feedback) vs exam (countdown, submit-all-at-end); `scope` is the target pool; `count` bounds the
+ * frozen set (exam defaults to 30 server-side, practice defaults to the whole scope, both hard-capped
+ * at 100 in the service). The service SHUFFLES + TYPE-CLUSTERS + FREEZES the set.
+ */
+export const startSessionSchema = z.object({
+  mode: z.enum(["practice", "exam"]),
+  scope: sessionScopeSchema,
+  count: z.number().int().min(1).max(100).optional(),
+});
+export type StartSessionInput = z.infer<typeof startSessionSchema>;
+
+/** sessionStateSchema — rehydrate a frozen session by id (ownership-scoped in the service). */
+export const sessionStateSchema = z.object({ sessionId: z.string().min(1) });
+export type SessionStateInput = z.infer<typeof sessionStateSchema>;

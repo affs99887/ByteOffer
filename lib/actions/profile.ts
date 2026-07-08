@@ -12,14 +12,33 @@ import { defineAction, mapError } from "@/lib/server/action";
 import type { ActionResult } from "@/lib/server/action";
 import { requireUser } from "@/lib/server/guards";
 import { checkRateLimit } from "@/lib/server/ratelimit";
+import * as prefsService from "@/lib/server/services/prefsService";
+import type { UserPrefs } from "@/lib/server/services/prefsService";
 import * as profileService from "@/lib/server/services/profileService";
-import { changePasswordSchema, updateProfileSchema } from "@/lib/validation/profile";
+import {
+  changePasswordSchema,
+  savePreferencesSchema,
+  updateProfileSchema,
+} from "@/lib/validation/profile";
 
 export const updateProfileAction = defineAction(
   updateProfileSchema,
   requireUser,
   async (input, user): Promise<{ id: string; name: string | null; image: string | null }> =>
     profileService.update(user.id, { name: input.name, image: input.image }),
+);
+
+/**
+ * savePreferencesAction — persist the user's UI prefs (layout / app + sidebar theme / daily goal) to
+ * their UserPreference row (§4.2). requireUser is the boundary; the write targets the SESSION user id
+ * (never a client id → no IDOR). The schema whitelists exactly the four pref fields (each optional →
+ * a partial patch); prefsService clamps dailyGoal (5..500) and normalizes the enums, then returns the
+ * full merged prefs so the client can reconcile its store from the authoritative row.
+ */
+export const savePreferencesAction = defineAction(
+  savePreferencesSchema,
+  requireUser,
+  async (input, user): Promise<UserPrefs> => prefsService.savePreferences(user.id, input),
 );
 
 /**

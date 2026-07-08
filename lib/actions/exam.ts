@@ -13,6 +13,7 @@ import * as entitlementService from "@/lib/server/services/entitlementService";
 import * as sessionService from "@/lib/server/services/sessionService";
 import type {
   ExamStateResult,
+  SessionStateResult,
   StartExamResult,
   SubmitExamResult,
 } from "@/lib/server/services/sessionService";
@@ -20,6 +21,7 @@ import {
   examSessionSchema,
   examStateSchema,
   saveExamAnswerSchema,
+  sessionStateSchema,
   startExamSchema,
 } from "@/lib/validation/exam";
 
@@ -58,4 +60,17 @@ export const getExamStateAction = defineAction(
   requireUser,
   async (input, user): Promise<ExamStateResult | null> =>
     sessionService.getExamState({ userId: user.id, sessionId: input.sessionId }),
+);
+
+/**
+ * getSessionStateAction — REHYDRATE a UNIFIED session (V2 hub) by id for refresh-resume. Lives here
+ * (exam.ts) per the kernel plan; drives sessionService.getSessionState, which is ownership-scoped
+ * (where:{ id, userId } — IDOR kill) and returns null when the id isn't the caller's. Serves the
+ * frozen key-STRIPPED questions + saved answers (exam) + monotonic countdown (exam) / null (practice).
+ */
+export const getSessionStateAction = defineAction(
+  sessionStateSchema,
+  requireUser,
+  async (input, user): Promise<SessionStateResult | null> =>
+    sessionService.getSessionState({ userId: user.id, sessionId: input.sessionId }),
 );

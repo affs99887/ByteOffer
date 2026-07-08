@@ -14,6 +14,8 @@
         "HTML",
         "语义化"
       ],
+      "chapter": "HTML",
+      "section": "语义化与可访问性",
       "stem": "下列哪个 HTML5 元素最适合标记页面主体中一段“与周围内容相对独立、可单独分发或复用”的内容（如一篇博客文章或一条评论）？",
       "options": [
         {
@@ -62,6 +64,8 @@
         "meta",
         "移动端"
       ],
+      "chapter": "HTML",
+      "section": "视口与脚本加载",
       "stem": "为使页面在移动端按设备宽度渲染并保持初始 1:1 缩放，下列 meta viewport 配置正确的是？",
       "options": [
         {
@@ -110,6 +114,8 @@
         "表单",
         "input"
       ],
+      "chapter": "HTML",
+      "section": "表单与校验",
       "stem": "关于 HTML 表单与原生约束校验，下列说法正确的有哪些？",
       "options": [
         {
@@ -162,6 +168,8 @@
         "script",
         "性能"
       ],
+      "chapter": "HTML",
+      "section": "视口与脚本加载",
       "stem": "带 defer 的外部脚本会在 HTML 解析的同时并行下载，并被推迟到文档解析完成后、按其在文档中出现的顺序、在 DOMContentLoaded 事件触发之前依次执行。该说法是否正确？",
       "answer": true,
       "explanation": {
@@ -192,6 +200,8 @@
         "可访问性",
         "ARIA"
       ],
+      "chapter": "HTML",
+      "section": "语义化与可访问性",
       "stem": "简述在什么场景下应使用 ARIA 属性（如 role、aria-label、aria-live），以及“优先使用原生语义元素而非 ARIA”这一原则的含义。",
       "reference": "ARIA 用于在原生 HTML 语义无法表达时补充可访问性信息，例如用 div 实现的自定义 tab、dialog、tree 等组件，需要 role 说明角色、aria-label 或 aria-labelledby 提供无障碍名称、aria-live 声明动态区域的更新播报方式。但 ARIA 只改变辅助技术读到的语义，不提供任何行为，键盘操作与焦点管理仍需自行实现。“优先原生语义”指能用 button、nav、input 等原生元素时就不要用 div 加 role 去模拟，因为原生元素自带语义、焦点与键盘行为；误用 ARIA 反而可能覆盖或破坏原有语义，即所谓“No ARIA is better than bad ARIA”。",
       "keywords": [
@@ -231,6 +241,8 @@
         "盒模型",
         "box-sizing"
       ],
+      "chapter": "CSS",
+      "section": "盒模型与单位",
       "stem": "一个元素设置 width:200px; padding:20px; border:5px solid; box-sizing:border-box; 那么它在页面上占据的边框盒总宽度（含 content、padding、border，不含 margin）是多少？",
       "options": [
         {
@@ -279,6 +291,8 @@
         "选择器",
         "优先级"
       ],
+      "chapter": "CSS",
+      "section": "选择器与层叠",
       "stem": "下列四个选择器作用于同一元素，哪一个的优先级（specificity）最高？",
       "options": [
         {
@@ -327,6 +341,8 @@
         "Flexbox",
         "布局"
       ],
+      "chapter": "CSS",
+      "section": "布局与定位",
       "stem": "关于 Flexbox 弹性布局，下列说法正确的有哪些？",
       "options": [
         {
@@ -379,6 +395,8 @@
         "定位",
         "position"
       ],
+      "chapter": "CSS",
+      "section": "布局与定位",
       "mode": "ordered",
       "stem": "补全 CSS position 取值：使元素脱离文档流、相对于最近的“已定位祖先”进行定位，使用 ______；使元素相对于视口固定、默认不随页面滚动，使用 ______。",
       "blanks": [
@@ -427,6 +445,8 @@
         "单位",
         "响应式"
       ],
+      "chapter": "CSS",
+      "section": "盒模型与单位",
       "stem": "将下列 CSS 长度单位与其定义正确匹配。",
       "left": [
         {
@@ -510,6 +530,8 @@
         "类型",
         "typeof"
       ],
+      "chapter": "JavaScript",
+      "section": "原型与类型",
       "stem": "在 JavaScript 中，表达式 typeof null 的求值结果是？",
       "options": [
         {
@@ -558,6 +580,8 @@
         "事件循环",
         "异步"
       ],
+      "chapter": "JavaScript",
+      "section": "异步与事件循环",
       "stem": "关于浏览器事件循环（Event Loop）中的宏任务与微任务，下列说法正确的有哪些？",
       "options": [
         {
@@ -610,6 +634,8 @@
         "闭包",
         "作用域"
       ],
+      "chapter": "JavaScript",
+      "section": "作用域与闭包",
       "stem": "阅读以下代码，写出控制台依次输出的内容（每行一个）。\n\nfor (var i = 0; i < 3; i++) {\n  setTimeout(() => console.log(i), 0);\n}\nfor (let j = 0; j < 3; j++) {\n  setTimeout(() => console.log(j), 0);\n}",
       "expected": "3\n3\n3\n0\n1\n2",
       "explanation": {
@@ -640,6 +666,8 @@
         "Promise",
         "异步"
       ],
+      "chapter": "JavaScript",
+      "section": "异步与事件循环",
       "mode": "ordered",
       "stem": "补全 Promise 知识：一个 Promise 初始为 pending 状态，成功兑现后变为 ______ 状态，失败被拒绝后变为 ______ 状态；状态一旦敲定（settled）便不可再改变。",
       "blanks": [
@@ -691,6 +719,8 @@
         "原型链",
         "继承"
       ],
+      "chapter": "JavaScript",
+      "section": "原型与类型",
       "stem": "简述 JavaScript 的原型链机制：对象的 [[Prototype]]、构造函数的 prototype 属性，以及属性查找是如何沿原型链进行的。",
       "reference": "每个对象都有一个内部槽 [[Prototype]]（可通过 Object.getPrototypeOf 读取，历史上用 __proto__ 访问），指向它的原型对象。通过 new Fn() 创建实例时，实例的 [[Prototype]] 被设置为 Fn.prototype，即构造函数上的 prototype 属性所指向的对象。当读取 obj.x 时，引擎先在对象自身属性中查找，找不到则沿 [[Prototype]] 链逐级向上查找，直到 Object.prototype，最终到 null 结束；找到即返回，否则得到 undefined。因此实例能共享构造函数 prototype 上定义的方法，这就是基于原型的委托式继承；class 语法只是这套机制的语法糖，extends 本质是配置原型链。写属性时通常直接写在对象自身上，不会修改原型（除非触发原型上的 setter）。",
       "keywords": [
@@ -731,6 +761,8 @@
         "类型系统",
         "unknown"
       ],
+      "chapter": "TypeScript",
+      "section": "类型系统与安全",
       "stem": "关于 TypeScript 中的 any 与 unknown，下列描述正确的是？",
       "options": [
         {
@@ -779,6 +811,8 @@
         "工具类型",
         "泛型"
       ],
+      "chapter": "TypeScript",
+      "section": "泛型与型变",
       "stem": "关于 TypeScript 内置工具类型（Utility Types），下列说法正确的有哪些？",
       "options": [
         {
@@ -832,6 +866,8 @@
         "枚举",
         "编译"
       ],
+      "chapter": "TypeScript",
+      "section": "枚举与编译",
       "stem": "以下 TypeScript 代码编译为 JavaScript 后运行，控制台依次输出什么（每行一个）？\n\nenum Direction {\n  Up,\n  Down,\n  Left,\n  Right,\n}\nconsole.log(Direction.Up);\nconsole.log(Direction[0]);\nconsole.log(Direction.Right);",
       "expected": "0\nUp\n3",
       "explanation": {
@@ -862,6 +898,8 @@
         "类型系统",
         "结构化类型"
       ],
+      "chapter": "TypeScript",
+      "section": "类型系统与安全",
       "stem": "TypeScript 采用结构化类型系统（structural typing）：只要两个类型的结构（成员形状）兼容，即使名称不同、也未显式声明继承关系，也可相互赋值。该说法是否正确？",
       "answer": true,
       "explanation": {
@@ -892,6 +930,8 @@
         "类型系统",
         "协变逆变"
       ],
+      "chapter": "TypeScript",
+      "section": "泛型与型变",
       "stem": "简述为什么在严格模式下 TypeScript 函数类型的参数遵循逆变（contravariance），并说明 strictFunctionTypes 的作用。",
       "reference": "类型安全地替换一个函数时，替代函数应能接受“更宽”的参数并返回“更窄”的结果，即参数逆变、返回值协变。直觉上：若某处期望一个能处理 Animal 的回调，传入一个只会处理 Dog 的函数是不安全的，因为它可能访问 Dog 特有成员而实参只是 Animal；因此参数类型只有更宽（朝 Animal 的超集方向）才能安全替换，这就是逆变。TypeScript 出于历史易用性对以方法语法声明的参数采用双变（bivariant）处理，但开启 strictFunctionTypes 后，会对以函数类型语法（而非方法）声明的参数启用严格的逆变检查，从而拒绝把 (x:Dog)=>void 赋给期望 (x:Animal)=>void 的位置。返回值方向相反、始终协变：返回更具体的子类型总是安全的。理解协变与逆变有助于正确设计回调与泛型约束，也与里氏替换原则一致。",
       "keywords": [
@@ -931,6 +971,8 @@
         "列表渲染",
         "key"
       ],
+      "chapter": "React",
+      "section": "渲染流程与协调",
       "stem": "在 React 中渲染列表时，为每个列表项提供 key 的主要作用是？",
       "options": [
         {
@@ -979,6 +1021,8 @@
         "Hooks",
         "useEffect"
       ],
+      "chapter": "React",
+      "section": "Hooks 规则与副作用",
       "stem": "关于 React Hooks 的使用规则与 useEffect，下列说法正确的有哪些？",
       "options": [
         {
@@ -1031,6 +1075,8 @@
         "状态",
         "批处理"
       ],
+      "chapter": "React",
+      "section": "状态与性能优化",
       "stem": "在 React 18 及以后，默认情况下即使在 setTimeout 或 Promise 回调等异步场景中触发的多次 setState，也会被自动批处理（automatic batching），合并为一次重新渲染。该说法是否正确？",
       "answer": true,
       "explanation": {
@@ -1061,6 +1107,8 @@
         "渲染流程",
         "副作用"
       ],
+      "chapter": "React",
+      "section": "渲染流程与协调",
       "stem": "将函数组件一次“挂载”过程中的下列阶段，按 React 实际执行的先后顺序从最先到最后排列。",
       "items": [
         {
@@ -1115,6 +1163,8 @@
         "性能优化",
         "React19"
       ],
+      "chapter": "React",
+      "section": "状态与性能优化",
       "stem": "论述在 React 中优化重渲染性能的常见手段，并说明 React 19 的自动优化（如 React Compiler）如何改变这些实践。",
       "reference": "传统手段包括：用 React.memo 记忆化组件以在 props 未变化时跳过重渲染；用 useMemo 缓存昂贵计算结果、useCallback 稳定传给子组件的函数引用以配合 memo 生效；合理拆分组件与状态下沉，缩小重渲染范围；使用稳定的 key、避免在渲染中创建新对象或内联对象作为 props；对长列表采用虚拟化，只渲染可视区。这些手动记忆化容易遗漏依赖或被过度使用，增加心智负担。React 19 引入的 React Compiler（编译期自动记忆化）能在构建时分析组件，自动插入等价于 memo、useMemo、useCallback 的缓存，使开发者在多数场景下无需手写这些优化即可获得细粒度更新；此外 useTransition、useDeferredValue 等并发特性可将非紧急更新降级、保持交互流畅。实践上应先用 Profiler 定位真实瓶颈，再决定手动优化还是依赖编译器，避免过早优化。",
       "rubric": [
@@ -1165,6 +1215,8 @@
         "指令",
         "v-if"
       ],
+      "chapter": "Vue",
+      "section": "模板与指令",
       "stem": "关于 Vue 中 v-if 与 v-show 的区别，下列描述正确的是？",
       "options": [
         {
@@ -1213,6 +1265,8 @@
         "v-model",
         "双向绑定"
       ],
+      "chapter": "Vue",
+      "section": "模板与指令",
       "stem": "在 Vue 3 中，对一个原生 input 使用 v-model=\"text\"，本质上等价于下列哪种“绑定值 + 监听事件”的组合？",
       "options": [
         {
@@ -1261,6 +1315,8 @@
         "响应式",
         "ref"
       ],
+      "chapter": "Vue",
+      "section": "响应式系统",
       "stem": "关于 Vue 3 组合式 API 中的 ref 与 reactive，下列说法正确的有哪些？",
       "options": [
         {
@@ -1313,6 +1369,8 @@
         "生命周期",
         "组合式API"
       ],
+      "chapter": "Vue",
+      "section": "组合式API与生命周期",
       "stem": "在 Vue 3 组合式 API 中，setup（或 script setup 顶层）的执行时机早于 created，因此没有对应的 onCreated 钩子，原本要在 created 里做的初始化逻辑可直接写在 setup 中。该说法是否正确？",
       "answer": true,
       "explanation": {
@@ -1343,6 +1401,8 @@
         "响应式原理",
         "Proxy"
       ],
+      "chapter": "Vue",
+      "section": "响应式系统",
       "stem": "简述 Vue 3 响应式系统的基本原理，以及它相较 Vue 2 使用 Object.defineProperty 的方案有哪些改进。",
       "reference": "Vue 3 用 ES6 Proxy 代理整个对象，在其 get 拦截中进行依赖收集（track）、在 set、deleteProperty 等拦截中触发更新（trigger），配合 effect（副作用函数）建立数据到依赖的映射关系，数据变化时精准重新运行相关 effect。相比 Vue 2 基于 Object.defineProperty 逐属性劫持的方案，Proxy 能拦截属性的新增与删除、数组索引与 length 的变更，因此无需 Vue.set 与 Vue.delete，也不必对数组方法打补丁；且它对嵌套对象采用惰性递归代理（访问到才代理），初始化开销更小、内存更省。ref 用于包裹原始值，通过 .value 的 getter、setter 实现响应式；reactive 用于对象。主要局限是 Proxy 不被 IE11 支持，且对 reactive 对象解构会断开响应式连接。",
       "keywords": [
@@ -1385,6 +1445,8 @@
         "渲染",
         "重排重绘"
       ],
+      "chapter": "浏览器",
+      "section": "渲染与性能",
       "stem": "下列哪一项操作通常只会引起“重绘（repaint）”，而不会引起“重排、回流（reflow）”？",
       "options": [
         {
@@ -1433,6 +1495,8 @@
         "存储",
         "localStorage"
       ],
+      "chapter": "浏览器",
+      "section": "存储与缓存",
       "stem": "关于浏览器端的 localStorage、sessionStorage 与 Cookie，下列说法正确的有哪些？",
       "options": [
         {
@@ -1485,6 +1549,8 @@
         "关键渲染路径",
         "性能"
       ],
+      "chapter": "浏览器",
+      "section": "渲染与性能",
       "stem": "按经典关键渲染路径（Critical Rendering Path）模型，将浏览器从解析到首次绘制的主要步骤按先后顺序排列。",
       "items": [
         {
@@ -1544,6 +1610,8 @@
         "HTTP缓存",
         "缓存"
       ],
+      "chapter": "浏览器",
+      "section": "存储与缓存",
       "mode": "ordered",
       "stem": "补全 HTTP 缓存知识：控制强缓存的响应头之一是 Cache-Control，其指令 ______ 用于以“秒”为单位指定资源的新鲜时长；在协商缓存中，服务器通过响应头 ______ 返回资源的摘要标识，浏览器下次用 If-None-Match 带回校验，若资源未变则返回状态码 304。",
       "blanks": [
@@ -1598,6 +1666,8 @@
         "Web安全",
         "XSS"
       ],
+      "chapter": "浏览器",
+      "section": "Web安全",
       "stem": "论述 XSS（跨站脚本）与 CSRF（跨站请求伪造）两类攻击的原理与区别，并分别给出主要防御手段。",
       "reference": "XSS 是攻击者把恶意脚本注入页面并在受害者浏览器中执行，分为存储型（恶意内容持久化于服务端）、反射型（经 URL 参数即时回显）与 DOM 型（前端 JS 不安全地把输入写入 DOM）。危害包括窃取 Cookie 或令牌、伪造用户操作等。防御以“按上下文输出编码加输入校验”为主：对动态内容做 HTML、属性、JS 上下文编码，优先使用框架的自动转义，避免 innerHTML 或 dangerouslySetInnerHTML，部署 CSP 限制可执行脚本来源，并给 Cookie 设 HttpOnly 降低被盗风险。CSRF 则利用用户已登录的身份态，诱导其浏览器向目标站点发起非预期的带凭证请求，攻击者并不需要读取响应，只借用户身份执行写操作。防御手段包括 CSRF Token（服务端下发、请求时校验，攻击者无法预知）、SameSite Cookie（Lax 或 Strict 限制跨站自动携带 Cookie）、校验 Origin 或 Referer，以及对敏感操作二次确认。核心区别：XSS 是注入并执行脚本（信任了不可信内容），CSRF 是冒用已认证身份发请求（信任了来路不明的请求）；二者可叠加，XSS 往往能绕过 CSRF 防护，故 XSS 防御更为根本。",
       "rubric": [
@@ -1652,6 +1722,8 @@
         "HTTP",
         "请求方法"
       ],
+      "chapter": "网络",
+      "section": "请求方法与状态码",
       "stem": "关于 HTTP 请求方法的语义，下列描述正确的是？",
       "options": [
         {
@@ -1700,6 +1772,8 @@
         "HTTP",
         "状态码"
       ],
+      "chapter": "网络",
+      "section": "请求方法与状态码",
       "stem": "HTTP 状态码 301 与 302 的区别是？",
       "options": [
         {
@@ -1748,6 +1822,8 @@
         "HTTPS",
         "TLS"
       ],
+      "chapter": "网络",
+      "section": "HTTPS与TLS",
       "stem": "关于 HTTPS 与 TLS，下列说法正确的有哪些？",
       "options": [
         {
@@ -1800,6 +1876,8 @@
         "HTTP",
         "状态码"
       ],
+      "chapter": "网络",
+      "section": "请求方法与状态码",
       "stem": "当客户端在单位时间内发送了过多请求、服务器进行限流时，按 HTTP 语义应返回的状态码是多少？请填写三位数字状态码。",
       "value": 429,
       "explanation": {
@@ -1830,6 +1908,8 @@
         "HTTP",
         "协议演进"
       ],
+      "chapter": "网络",
+      "section": "协议演进",
       "stem": "将下列 HTTP 协议版本与其代表性特征正确匹配。",
       "left": [
         {
@@ -1901,6 +1981,8 @@
         "模块化",
         "ESM"
       ],
+      "chapter": "工程化",
+      "section": "模块化与打包优化",
       "stem": "关于 ES Modules（ESM）与 CommonJS（CJS）的区别，下列描述正确的是？",
       "options": [
         {
@@ -1949,6 +2031,8 @@
         "npm",
         "语义化版本"
       ],
+      "chapter": "工程化",
+      "section": "依赖与版本管理",
       "stem": "在 package.json 依赖中，版本范围 \"^1.2.3\" 允许自动升级到下列哪一个版本？",
       "options": [
         {
@@ -1997,6 +2081,8 @@
         "打包",
         "构建优化"
       ],
+      "chapter": "工程化",
+      "section": "模块化与打包优化",
       "stem": "关于现代前端打包与构建优化，下列说法正确的有哪些？",
       "options": [
         {
@@ -2049,6 +2135,8 @@
         "Babel",
         "兼容性"
       ],
+      "chapter": "工程化",
+      "section": "构建工具与编译",
       "stem": "Babel 默认只做语法转换（如把箭头函数、class 降级为 ES5 等价写法），并不会自动为 Promise、Array.prototype.includes 等新 API 提供实现，这类缺失的运行时能力需要通过 polyfill（如 core-js）来补齐。该说法是否正确？",
       "answer": true,
       "explanation": {
@@ -2079,6 +2167,8 @@
         "Vite",
         "构建工具"
       ],
+      "chapter": "工程化",
+      "section": "构建工具与编译",
       "mode": "ordered",
       "stem": "补全构建工具知识：Vite 在开发环境利用浏览器原生 ______ 模块按需提供源码、实现秒级启动与热更新，并用底层的 esbuild 预构建依赖；而在生产环境为获得更优的加载与兼容性，Vite 默认使用 ______ 进行打包。",
       "blanks": [
@@ -2139,6 +2229,8 @@
         "复杂度",
         "查找"
       ],
+      "chapter": "算法",
+      "section": "复杂度与查找",
       "stem": "对一个长度为 n 的有序数组执行二分查找（binary search），其最坏时间复杂度是？",
       "options": [
         {
@@ -2187,6 +2279,8 @@
         "排序",
         "稳定性"
       ],
+      "chapter": "算法",
+      "section": "排序",
       "stem": "下列排序算法中，在常规实现下通常是“稳定”的（相等元素的相对次序在排序后保持不变）？",
       "options": [
         {
@@ -2235,6 +2329,8 @@
         "递归",
         "斐波那契"
       ],
+      "chapter": "算法",
+      "section": "递归与动态规划",
       "stem": "阅读以下 JavaScript 代码，写出 console.log 的输出结果。\n\nfunction fib(n) {\n  if (n < 2) return n;\n  return fib(n - 1) + fib(n - 2);\n}\nconsole.log(fib(7));",
       "expected": "13",
       "explanation": {
@@ -2265,6 +2361,8 @@
         "复杂度",
         "二分查找"
       ],
+      "chapter": "算法",
+      "section": "复杂度与查找",
       "stem": "在一个长度为 1000 的有序数组上执行二分查找，最坏情况下最多需要比较多少次？提示：结果等于 floor(log2(1000)) + 1，请填写整数次数。",
       "value": 10,
       "explanation": {
@@ -2295,6 +2393,8 @@
         "动态规划",
         "贪心"
       ],
+      "chapter": "算法",
+      "section": "递归与动态规划",
       "stem": "对于 0-1 背包问题（每件物品只能选或不选、不可分割），采用“每次优先选取单位重量价值最高的物品”的贪心策略，总能得到全局最优解。该说法是否正确？",
       "answer": false,
       "explanation": {

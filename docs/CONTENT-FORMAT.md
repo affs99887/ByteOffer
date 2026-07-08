@@ -44,6 +44,8 @@
 | `type` | ✅ | 13 种题型之一（见 §3）。未知题型 → 该题被拒。 |
 | `difficulty` | 建议填 | `"easy" \| "medium" \| "hard"`（显示为 简单 / 中等 / 困难）。非法/缺失 → 告警并回退 `medium`。 |
 | `tags` | ✅ 强烈建议 | 字符串数组。**第一个 tag = 分类**（见 §2.1）。非字符串数组 → 告警并置空 `[]`。 |
+| `chapter` | ⬜ 强烈建议 | **章节**（顶层主题），纯中文显示串，如 `JavaScript`。驱动「章节→小节」浏览树与练习/考试范围选择（见 §2.5）。缺省 → 该题归入「未分类」。非空、去空白后 ≤ 80 字，否则**仅告警并忽略**（不拒题）。 |
+| `section` | ⬜ 强烈建议 | **小节**（子主题），如 `作用域与闭包`，浏览树第二层。规则同 `chapter`（见 §2.5）。 |
 | `stem` | ✅ | 题干，纯文本（见 §6）。为空 → 该题被拒。 |
 | `source` | ⬜ | `{ company?, year?:int, position? }` 出处。 |
 | `explanation` | ⬜ | 解析，仅**作答提交后**展示（见 §2.2）。 |
@@ -104,6 +106,35 @@ HTML   CSS   JavaScript   TypeScript   React   Vue   浏览器   网络   工程
 | essay / code_writing | `self_assess` | `selfAssess:false` → `manual_reference` |
 | scenario | `composite` | — |
 | cloze | `manual_reference` | v1 **不判分** |
+
+### 2.5 章节 / 小节（chapter / section）——数据驱动的浏览树
+
+`chapter`（章节，顶层）与 `section`（小节，二级）是**纯中文显示字符串**，用来在「题库中心」把题目组织成一棵 **章节 → 小节** 浏览树；用户据此勾选范围来发起**刷题**或**模拟面试**，错题本 / 收藏也携带章节小节并可按章节筛选。
+
+- **强烈建议每题都写**：没有 `chapter` 的题会被归到 **「未分类」** 章节；有 `chapter` 但没有 `section` 的题，归到该章节下的「未分类」小节。
+- **不是枚举、没有固定清单**：整棵树**完全由导入题目实际声明的 `chapter`/`section` 派生**——你写什么，树上就长出什么（代码从不硬编码章节名/数量）。因此**同一主题务必用词与大小写完全一致**：`JavaScript` 与 `Javascript` 会被当成两个不同章节。
+- **约定**：`chapter` = 宽泛主题（如 `JavaScript`、`CSS`、`React`）；`section` = 其下子主题（如 `作用域与闭包`、`Flex 布局`、`Hooks`）。
+- **校验（可选、宽容）**：若填，必须是**非空、去空白后 ≤ 80 字**的字符串；否则**仅告警并忽略**该字段（题目照常导入、落入未分类），**绝不因此拒题**。前后空白会被自动 `trim`。
+- 它与 §2.1「分类 = `tags[0]`」是**两套并存**的维度：`tags[0]` 供统计 / 首页分类进度；`chapter`/`section` 供浏览树与范围选择。二者可以（也建议）保持语义一致。
+
+**示例**（在任意题型上追加两字段即可）：
+
+```json
+{
+  "id": "js-closure-003",
+  "type": "single_choice",
+  "difficulty": "medium",
+  "tags": ["JavaScript", "闭包"],
+  "chapter": "JavaScript",
+  "section": "作用域与闭包",
+  "stem": "以下关于闭包的说法正确的是？",
+  "options": [
+    { "k": "A", "t": "闭包会捕获变量的引用而非快照" },
+    { "k": "B", "t": "闭包无法访问外层函数的参数" }
+  ],
+  "answer": "A"
+}
+```
 
 ---
 
@@ -377,7 +408,7 @@ HTML   CSS   JavaScript   TypeScript   React   Vue   浏览器   网络   工程
 
 ## 5. 校验规则汇总 & 唯一性约束
 
-**告警（不阻断，题目照常导入）**：缺 `id`（自动派生）、`difficulty` 非法（回退 medium）、`tags` 非法（置空）、单图超 512KB（剥离）、`true_false` 答案被强转、正则编不过（丢候选）、`counts.total` 不符、cloze 不判分、**文件内重复 id**。
+**告警（不阻断，题目照常导入）**：缺 `id`（自动派生）、`difficulty` 非法（回退 medium）、`tags` 非法（置空）、`chapter`/`section` 非法（非空串且 ≤80 字，否则忽略、落入未分类）、单图超 512KB（剥离）、`true_false` 答案被强转、正则编不过（丢候选）、`counts.total` 不符、cloze 不判分、**文件内重复 id**。
 
 **错误（该题被拒；seed/import 要求零拒绝，一旦出现即整批中止）**：`stem` 为空、未知题型、选项 < 2 / 选项键不在 A–H / 键重复、`answer` 不在选项内、多选答案空/重复、填空下划线段数与 blanks 不符 / 某空 accept 为空、numeric value 非有限数、ordering `order` 不是排列、matching pair 引用不存在 / 非 1:1、scenario 无 part / 嵌套 scenario、图片非 `data:image/*`。
 

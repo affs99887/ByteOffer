@@ -118,3 +118,52 @@ describe("validateEnvelope — unknown type dropped", () => {
     expect(r.accepted.map((q) => q.id)).not.toContain("q-unknown");
   });
 });
+
+describe("validateEnvelope — chapter/section (optional browse-tree display strings)", () => {
+  test("a record WITH chapter/section is accepted; values are trimmed and mirrored", () => {
+    const withCh = { ...goodSingle, id: "q-ch", chapter: "  JavaScript  ", section: "作用域与闭包" };
+    const r = validateEnvelope(envelope([withCh]));
+    expect(r.counts.accepted).toBe(1);
+    const acc = r.accepted[0] as { chapter?: string; section?: string };
+    expect(acc.chapter).toBe("JavaScript"); // surrounding whitespace trimmed
+    expect(acc.section).toBe("作用域与闭包");
+    // A clean chapter/section produces no chapter/section warning.
+    const rep = r.records.find((x) => x.id === "q-ch");
+    expect(rep?.issues.some((i) => i.path.endsWith(".chapter") || i.path.endsWith(".section"))).toBe(false);
+  });
+
+  test("a record WITHOUT chapter/section is still valid (fields simply absent)", () => {
+    const r = validateEnvelope(envelope([goodSingle]));
+    expect(r.counts.accepted).toBe(1);
+    const acc = r.accepted[0] as { chapter?: string; section?: string };
+    expect(acc.chapter).toBeUndefined();
+    expect(acc.section).toBeUndefined();
+  });
+
+  test("blank chapter + over-long section are dropped with WARNINGS (never rejected)", () => {
+    const bad = {
+      ...goodSingle,
+      id: "q-ch-bad",
+      chapter: "   ", // blank after trim → dropped
+      section: "x".repeat(81), // > 80 chars → dropped
+    };
+    const r = validateEnvelope(envelope([bad]));
+    expect(r.counts.accepted).toBe(1); // a warning never rejects the record
+    const rep = r.records.find((x) => x.id === "q-ch-bad");
+    expect(rep?.ok).toBe(true);
+    expect(rep?.issues.some((i) => i.code === "bad_chapter" && i.level === "warning")).toBe(true);
+    expect(rep?.issues.some((i) => i.code === "section_too_long" && i.level === "warning")).toBe(true);
+    const acc = r.accepted[0] as { chapter?: string; section?: string };
+    expect(acc.chapter).toBeUndefined();
+    expect(acc.section).toBeUndefined();
+  });
+
+  test("a non-string chapter is dropped with a warning, record stays accepted", () => {
+    const bad = { ...goodSingle, id: "q-ch-num", chapter: 123 };
+    const r = validateEnvelope(envelope([bad]));
+    expect(r.counts.accepted).toBe(1);
+    const rep = r.records.find((x) => x.id === "q-ch-num");
+    expect(rep?.issues.some((i) => i.code === "bad_chapter" && i.level === "warning")).toBe(true);
+    expect((r.accepted[0] as { chapter?: string }).chapter).toBeUndefined();
+  });
+});

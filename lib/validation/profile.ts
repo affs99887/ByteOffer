@@ -26,3 +26,14 @@ export const changePasswordSchema = z.object({
   newPassword: strongPassword,
 });
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
+// UI-preference patch (settings → 外观/目标). Every field optional so the client PATCHes only what
+// changed; prefsService.savePreferences merges onto the existing row (or the schema defaults) and
+// re-clamps dailyGoal. layout / appTheme / sbTheme are strict enums — no other value persists.
+export const savePreferencesSchema = z.object({
+  layout: z.enum(["sidebar", "top"]).optional(),
+  appTheme: z.enum(["light", "dark"]).optional(),
+  sbTheme: z.enum(["light", "dark"]).optional(),
+  dailyGoal: z.number().int().min(5).max(500).optional(),
+});
+export type SavePreferencesInput = z.infer<typeof savePreferencesSchema>;

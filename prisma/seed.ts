@@ -397,6 +397,8 @@ async function seedBank(authorId: string): Promise<BankSummary> {
               gradingClass: row.gradingClass,
               stemText: row.stemText,
               tagsFlat: row.tagsFlat,
+              chapter: row.chapter,
+              section: row.section,
               payload: row.payload,
               schemaVersion: row.schemaVersion,
               authorId: row.authorId,

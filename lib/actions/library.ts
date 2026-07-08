@@ -12,6 +12,7 @@ import * as libraryService from "@/lib/server/services/libraryService";
 import type { ListItemsResult } from "@/lib/server/services/libraryService";
 import {
   listCursorSchema,
+  listFavoritesSchema,
   listWrongbookSchema,
   masterWrongSchema,
   toggleFavoriteSchema,
@@ -21,7 +22,12 @@ export const listWrongbookAction = defineAction(
   listWrongbookSchema,
   requireUser,
   async (input, user): Promise<ListItemsResult> =>
-    libraryService.listWrongbook({ userId: user.id, cursor: input.cursor, mastered: input.mastered }),
+    libraryService.listWrongbook({
+      userId: user.id,
+      cursor: input.cursor,
+      mastered: input.mastered,
+      chapter: input.chapter,
+    }),
 );
 
 export const masterWrongAction = defineAction(
@@ -39,10 +45,10 @@ export const toggleFavoriteAction = defineAction(
 );
 
 export const listFavoritesAction = defineAction(
-  listCursorSchema,
+  listFavoritesSchema,
   requireUser,
   async (input, user): Promise<ListItemsResult> =>
-    libraryService.listFavorites({ userId: user.id, cursor: input.cursor }),
+    libraryService.listFavorites({ userId: user.id, cursor: input.cursor, chapter: input.chapter }),
 );
 
 export const listRecentAction = defineAction(

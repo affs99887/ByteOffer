@@ -182,6 +182,71 @@ export async function categoryOverview(): Promise<CategoryCount[]> {
   `;
 }
 
+/** One section bucket of the browse tree: the section label + its published-question count. */
+export interface BrowseSection {
+  section: string;
+  count: number;
+}
+/** One chapter bucket: the chapter label, its rolled-up count, and its sections (count desc). */
+export interface BrowseChapter {
+  chapter: string;
+  count: number;
+  sections: BrowseSection[];
+}
+/** The full data-driven browse tree (chapters → sections) + the published grand total. */
+export interface BrowseStructure {
+  chapters: BrowseChapter[];
+  total: number;
+}
+
+/**
+ * browseStructure — the DATA-DRIVEN 章节→小节 tree for the merged 题库/模拟面试 hub (V2). Groups every
+ * PUBLISHED question by its mirror columns (chapter, then section); the tree is derived entirely from
+ * what the imported questions declare — chapter names/counts are NEVER hardcoded. Null chapter buckets
+ * as "未分类", null section as "综合" (COALESCE, so every published row lands in exactly one leaf → the
+ * summed leaf counts equal the published total). COUNT is cast ::int so it crosses the RSC/action
+ * boundary as a plain number (a bigint would not serialize). Raw SQL over "Question" (default Prisma
+ * identifiers) — the two-level COALESCE group has no clean Prisma groupBy equivalent.
+ *
+ * Ordering is deterministic: the SQL streams rows chapter-alphabetical (so the Map's first-seen order,
+ * and thus tie-breaks, are stable), then JS stable-sorts chapters by rolled-up count desc and each
+ * chapter's sections by count desc. Empty bank → { chapters: [], total: 0 }. A throw here means no DB;
+ * the RSC caller wraps this in try/catch and degrades to an empty tree.
+ */
+export async function browseStructure(): Promise<BrowseStructure> {
+  const rows = await prisma.$queryRaw<{ chapter: string; section: string; count: number }[]>`
+    SELECT
+      COALESCE("chapter", '未分类') AS chapter,
+      COALESCE("section", '综合')   AS section,
+      COUNT(*)::int                 AS count
+    FROM "Question"
+    WHERE status = 'published'
+    GROUP BY COALESCE("chapter", '未分类'), COALESCE("section", '综合')
+    ORDER BY chapter ASC, count DESC, section ASC
+  `;
+
+  // Fold the flat (chapter, section, count) rows into the nested tree. Map insertion order follows
+  // the SQL stream (chapter-alphabetical), giving stable tie-breaks under the count-desc sorts below.
+  const byChapter = new Map<string, BrowseChapter>();
+  let total = 0;
+  for (const r of rows) {
+    total += r.count;
+    let ch = byChapter.get(r.chapter);
+    if (!ch) {
+      ch = { chapter: r.chapter, count: 0, sections: [] };
+      byChapter.set(r.chapter, ch);
+    }
+    ch.count += r.count;
+    ch.sections.push({ section: r.section, count: r.count });
+  }
+
+  const chapters = [...byChapter.values()];
+  for (const ch of chapters) ch.sections.sort((a, b) => b.count - a.count);
+  chapters.sort((a, b) => b.count - a.count);
+
+  return { chapters, total };
+}
+
 /** getPublishedRow — full row incl payload. Throws NotFoundError if not published (§5.5). */
 export async function getPublishedRow(id: string): Promise<Question> {
   const row = await prisma.question.findFirst({ where: { id, status: "published" } });
@@ -277,6 +342,8 @@ export async function update(id: string, record: unknown): Promise<{ ok: true }>
         gradingClass: row.gradingClass,
         stemText: row.stemText,
         tagsFlat: row.tagsFlat,
+        chapter: row.chapter,
+        section: row.section,
         payload: row.payload,
         schemaVersion: row.schemaVersion,
       },

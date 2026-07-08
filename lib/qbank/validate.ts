@@ -35,6 +35,7 @@ const OPTION_KEYS: ReadonlySet<string> = new Set(["A", "B", "C", "D", "E", "F", 
 
 const MEDIA_MAX_BYTES = 512 * 1024;       // per-payload strip threshold (§3.4)
 const ENVELOPE_MAX_BYTES = 3.5 * 1024 * 1024; // whole-envelope hard cap (§3.4)
+const CHAPTER_SECTION_MAX = 80;           // chapter/section display-string cap (browse tree)
 
 const isObject = (v: unknown): v is Record<string, any> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
@@ -415,6 +416,25 @@ function checkGeneric(rec: any, iss: Issues, path: string): void {
   if (!Array.isArray(rec.tags) || !rec.tags.every((t: any) => typeof t === "string")) {
     iss.add("warning", `${path}.tags`, "bad_tags", "tags 非字符串数组，已置空");
     rec.tags = [];
+  }
+  // chapter / section (OPTIONAL browse-tree display strings). Same tolerance as tags: never a hard
+  // error — a non-string / blank / over-long value is dropped with a WARNING; a valid one is trimmed
+  // and carried into the accepted record (denormalized to Question.chapter/section on write).
+  for (const field of ["chapter", "section"] as const) {
+    const raw = rec[field];
+    if (raw === undefined) continue;
+    if (typeof raw !== "string" || raw.trim() === "") {
+      iss.add("warning", `${path}.${field}`, `bad_${field}`, `${field} 不是非空字符串，已忽略`);
+      delete rec[field];
+      continue;
+    }
+    const trimmed = raw.trim();
+    if (trimmed.length > CHAPTER_SECTION_MAX) {
+      iss.add("warning", `${path}.${field}`, `${field}_too_long`, `${field} 超过 ${CHAPTER_SECTION_MAX} 字，已忽略`);
+      delete rec[field];
+      continue;
+    }
+    rec[field] = trimmed;
   }
   // stem non-empty
   if (stemToString(rec.stem).trim() === "") {

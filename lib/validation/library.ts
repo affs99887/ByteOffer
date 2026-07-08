@@ -9,8 +9,18 @@ export const listWrongbookSchema = z.object({
   cursor: z.string().min(1).optional(),
   /** Optional filter: true → only mastered, false → only unmastered, omitted → all. */
   mastered: z.boolean().optional(),
+  /** Optional V2 browse filter: restrict the wrongbook to one chapter (data-driven tree label). */
+  chapter: z.string().min(1).optional(),
 });
 export type ListWrongbookInput = z.infer<typeof listWrongbookSchema>;
+
+// Favorites list paging + the optional V2 chapter filter. Distinct from the bare listCursorSchema
+// (which listRecent still uses) so only favorites/wrongbook accept `chapter`.
+export const listFavoritesSchema = z.object({
+  cursor: z.string().min(1).optional(),
+  chapter: z.string().min(1).optional(),
+});
+export type ListFavoritesInput = z.infer<typeof listFavoritesSchema>;
 
 export const masterWrongSchema = z.object({
   questionId: z.string().min(1),

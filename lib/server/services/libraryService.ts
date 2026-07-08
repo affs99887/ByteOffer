@@ -21,6 +21,15 @@ const DEFAULT_TAKE = 20;
  */
 export interface LibraryListItem extends ListItem {
   fav: boolean;
+  /**
+   * Chapter/section of the underlying question (the data-driven browse tree, V2) — selected from the
+   * joined question's mirror columns so the wrongbook/favorites/recent screens can render the tree
+   * label and filter/launch review sessions by chapter. Null when the imported question left the
+   * column unset (browseStructure buckets those as 未分类/综合). OPTIONAL so the existing
+   * ListItem-shaped callers keep compiling; every row this service returns sets both.
+   */
+  chapter?: string | null;
+  section?: string | null;
 }
 
 export interface ListItemsResult {
@@ -78,6 +87,9 @@ const QUESTION_SELECT = {
   difficulty: true,
   stemText: true,
   tagsFlat: true,
+  // V2 browse-tree mirror columns — carried onto every list row (no N+1: part of the same join).
+  chapter: true,
+  section: true,
 } as const;
 
 /**
@@ -90,12 +102,16 @@ export async function listWrongbook(params: {
   userId: string;
   cursor?: string;
   mastered?: boolean;
+  chapter?: string;
 }): Promise<ListItemsResult> {
-  const { userId, cursor, mastered } = params;
+  const { userId, cursor, mastered, chapter } = params;
   const take = DEFAULT_TAKE;
 
   const where: Prisma.WrongbookEntryWhereInput = { userId };
   if (mastered !== undefined) where.mastered = mastered;
+  // Optional V2 browse filter: restrict to one chapter via the joined question's mirror column. It
+  // is a relation filter on the SAME findMany (no extra round-trip / no N+1).
+  if (chapter) where.question = { chapter };
 
   const rows = await prisma.wrongbookEntry.findMany({
     where,
@@ -111,6 +127,8 @@ export async function listWrongbook(params: {
   const items: LibraryListItem[] = page.map((r) => ({
     ...toListItem(r.question, { wrongCount: r.wrongCount, lastAt: r.lastWrongAt }),
     fav: favSet.has(r.questionId),
+    chapter: r.question.chapter ?? null,
+    section: r.question.section ?? null,
   }));
   const nextCursor = hasMore ? page[page.length - 1].questionId : null;
 
@@ -178,12 +196,17 @@ export async function toggleFavorite(params: {
 export async function listFavorites(params: {
   userId: string;
   cursor?: string;
+  chapter?: string;
 }): Promise<ListItemsResult> {
-  const { userId, cursor } = params;
+  const { userId, cursor, chapter } = params;
   const take = DEFAULT_TAKE;
 
+  const where: Prisma.FavoriteWhereInput = { userId };
+  // Optional V2 browse filter: same-join relation filter on the favorited question's chapter.
+  if (chapter) where.question = { chapter };
+
   const rows = await prisma.favorite.findMany({
-    where: { userId },
+    where,
     include: { question: { select: QUESTION_SELECT } },
     orderBy: [{ createdAt: "desc" }, { questionId: "asc" }],
     take: take + 1,
@@ -207,6 +230,8 @@ export async function listFavorites(params: {
       lastAt: pByQ.get(r.questionId)?.lastAt ?? null,
     }),
     fav: true,
+    chapter: r.question.chapter ?? null,
+    section: r.question.section ?? null,
   }));
   const nextCursor = hasMore ? page[page.length - 1].questionId : null;
 
@@ -240,8 +265,60 @@ export async function listRecent(params: {
   const items: LibraryListItem[] = page.map((r) => ({
     ...toListItem(r.question, { wrongCount: r.wrongCount, lastAt: r.lastAt }),
     fav: favSet.has(r.questionId),
+    chapter: r.question.chapter ?? null,
+    section: r.question.section ?? null,
   }));
   const nextCursor = hasMore ? page[page.length - 1].questionId : null;
 
   return { items, nextCursor };
+}
+
+// ============================================================
+//  Scope gatherers (V2) — the session engine consumes these to seed a SHUFFLED, type-clustered,
+//  frozen review session from the user's library. They define MEMBERSHIP only (bare id[]); the
+//  engine does the Fisher-Yates shuffle + type clustering + freeze. Both are ownership-scoped
+//  (where:{ userId } — IDOR kill §3.2) and PUBLISHED-only (a since-unpublished question must not
+//  enter a new session), with an optional chapter narrow matching the browse tree. No cursor: a
+//  session gather reads the whole scope in one query.
+// ============================================================
+
+/**
+ * wrongQuestionIds — published question ids in the user's UNMASTERED wrongbook, optionally restricted
+ * to one chapter. Ordered newest-wrong first for a deterministic base order (the engine reshuffles).
+ */
+export async function wrongQuestionIds(params: {
+  userId: string;
+  chapter?: string;
+}): Promise<string[]> {
+  const { userId, chapter } = params;
+  const rows = await prisma.wrongbookEntry.findMany({
+    where: {
+      userId,
+      mastered: false,
+      question: { status: "published", ...(chapter ? { chapter } : {}) },
+    },
+    select: { questionId: true },
+    orderBy: [{ lastWrongAt: "desc" }, { questionId: "asc" }],
+  });
+  return rows.map((r) => r.questionId);
+}
+
+/**
+ * favoriteQuestionIds — published question ids this user has favorited, optionally restricted to one
+ * chapter. Ordered newest-favorite first for a deterministic base order (the engine reshuffles).
+ */
+export async function favoriteQuestionIds(params: {
+  userId: string;
+  chapter?: string;
+}): Promise<string[]> {
+  const { userId, chapter } = params;
+  const rows = await prisma.favorite.findMany({
+    where: {
+      userId,
+      question: { status: "published", ...(chapter ? { chapter } : {}) },
+    },
+    select: { questionId: true },
+    orderBy: [{ createdAt: "desc" }, { questionId: "asc" }],
+  });
+  return rows.map((r) => r.questionId);
 }

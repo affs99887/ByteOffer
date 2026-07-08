@@ -45,6 +45,15 @@ export interface BaseRecord {
   id: string;
   difficulty: Difficulty;
   tags: string[];
+  /**
+   * chapter=章节(顶层), section=小节 — plain display strings (NOT enums/ids) that drive the
+   * data-driven 章节→小节 browse tree and session scoping. Both OPTIONAL: a record with no
+   * `chapter` groups under 未分类. The tree is derived from whatever the imported questions
+   * declare — never a fixed list. Convention: chapter = broad topic (e.g. "JavaScript"),
+   * section = subtopic (e.g. "作用域与闭包"). Denormalized to Question.chapter/section columns.
+   */
+  chapter?: string;
+  section?: string;
   stem: LocalizedString;
   source?: Source;
   explanation?: Explanation;
