@@ -127,11 +127,14 @@ export function SessionScreen() {
             <div style={{ overflowX: "auto" }}>
               <div style={{ display: "flex", flexDirection: "column", gap: "10px", minWidth: "560px" }}>
                 {v.sessionResultRows.map((r) => {
-                  const tint = r.right ? "#0E9F6E" : r.partial ? "#F79009" : r.wrong ? "#F04438" : "var(--ink3)";
-                  const statusText = r.right ? "正确" : r.partial ? "部分正确" : r.wrong ? "错误" : "未作答";
+                  // A subjective question the user answered grades to "ungraded" (no exam self-grade),
+                  // so right/wrong/partial are all false but it is NOT 未作答 — show 待评分.
+                  const pendingSubjective = !r.right && !r.partial && !r.wrong && r.answered;
+                  const tint = r.right ? "#0E9F6E" : r.partial ? "#F79009" : r.wrong ? "#F04438" : pendingSubjective ? "#5A6172" : "var(--ink3)";
+                  const statusText = r.right ? "正确" : r.partial ? "部分正确" : r.wrong ? "错误" : pendingSubjective ? "主观题 · 待评分" : "未作答";
                   return (
                     <div key={r.id} style={{ display: "flex", alignItems: "flex-start", gap: "14px", padding: "13px 14px", border: "1px solid var(--line)", borderRadius: "10px" }}>
-                      <span style={{ ...cardBubble({ current: false, answered: r.right || r.partial || r.wrong, marked: false }), cursor: "default", flex: "none" }}>{r.n}</span>
+                      <span style={{ ...cardBubble({ current: false, answered: r.answered, marked: false }), cursor: "default", flex: "none" }}>{r.n}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "6px" }}>
                           <span style={r.typeChip}>{r.type}</span>

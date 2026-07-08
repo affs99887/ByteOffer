@@ -1769,6 +1769,10 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
             right: status === "correct",
             wrong: status === "incorrect",
             partial: status === "partial",
+            // answered vs graded: a subjective question (essay/short_answer/code_writing) grades to
+            // status "ungraded" in exam mode (no self-grade step), so right/wrong/partial are all
+            // false even though the user DID answer — the screen must show 待评分, not 未作答.
+            answered: sess.answers[i] !== undefined,
             yourAns: userAnswerText(qq, sess.answers[i]),
             correct: correctAnswerText(qq, per?.revealed),
             go: () => a.sessionGoto(i),
@@ -2435,7 +2439,15 @@ export function AppProvider({
           });
           if (res.ok) {
             // Adapt the server RAW-field reveal → the client FRIENDLY AnswerReveal keyed by q.type.
-            const rec = stateRef.current.bank.find((x) => x.id === questionId);
+            // Resolve the record's type across EVERY authed bank: a V2 launched session's frozen
+            // questions live in state.session.questions (NOT state.bank, which stays the first-paint
+            // batch), so a session-scoped question id would otherwise miss → qType undefined →
+            // adaptServerReveal's default case drops the answer field → the practice 正确答案 never
+            // shows. Mirror runSessionSubmitExam's session-first lookup.
+            const rec =
+              stateRef.current.session?.questions.find((x) => x.id === questionId) ??
+              stateRef.current.bank.find((x) => x.id === questionId) ??
+              stateRef.current.examBank.find((x) => x.id === questionId);
             const qType = rec?.type;
             const partTypes =
               qType === "scenario"

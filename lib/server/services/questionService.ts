@@ -213,6 +213,25 @@ export interface BrowseStructure {
  * chapter's sections by count desc. Empty bank → { chapters: [], total: 0 }. A throw here means no DB;
  * the RSC caller wraps this in try/catch and degrades to an empty tree.
  */
+/**
+ * Display sentinels the browse tree shows for a NULL chapter/section (a question whose content left
+ * the column unset). These are DISPLAY strings — every query-layer consumer (scope launch, wrongbook/
+ * favorites chapter filter) MUST translate them back to a real NULL via chapterFilterValue/
+ * sectionFilterValue, else filtering/launching a null-bucket node matches zero rows (an IS-NULL
+ * column never equals the literal '未分类'/'综合') and dead-ends a non-empty bucket.
+ */
+export const UNCATEGORIZED_CHAPTER = "未分类";
+export const UNCATEGORIZED_SECTION = "综合";
+
+/** Map a browse-tree chapter label to a Prisma filter value: the 未分类 sentinel → null (IS NULL). */
+export function chapterFilterValue(chapter: string): string | null {
+  return chapter === UNCATEGORIZED_CHAPTER ? null : chapter;
+}
+/** Map a browse-tree section label to a Prisma filter value: the 综合 sentinel → null (IS NULL). */
+export function sectionFilterValue(section: string): string | null {
+  return section === UNCATEGORIZED_SECTION ? null : section;
+}
+
 export async function browseStructure(): Promise<BrowseStructure> {
   const rows = await prisma.$queryRaw<{ chapter: string; section: string; count: number }[]>`
     SELECT

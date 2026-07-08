@@ -29,6 +29,7 @@ import {
   emitAnalytics,
 } from "@/lib/server/services/attemptService";
 import { favoriteQuestionIds, wrongQuestionIds } from "@/lib/server/services/libraryService";
+import { chapterFilterValue, sectionFilterValue } from "@/lib/server/services/questionService";
 import { sessionScopeSchema } from "@/lib/validation/exam";
 import type { PracticeFilters, SessionScope } from "@/lib/validation/exam";
 import type { AttemptStatus, GradingClass, Prisma, QuestionType } from "@prisma/client";
@@ -781,11 +782,13 @@ async function gatherScopedIds(userId: string, scope: SessionScope): Promise<str
   if (scope.kind === "wrong") return wrongQuestionIds({ userId, chapter: scope.chapter });
   if (scope.kind === "favorites") return favoriteQuestionIds({ userId, chapter: scope.chapter });
 
+  // Translate the browse-tree display labels back to real column values: the 未分类/综合 sentinels a
+  // NULL-chapter/section question buckets under must query as IS NULL, else the node dead-ends.
   const where: Prisma.QuestionWhereInput = { status: "published" };
-  if (scope.kind === "chapter") where.chapter = scope.chapter;
+  if (scope.kind === "chapter") where.chapter = chapterFilterValue(scope.chapter);
   if (scope.kind === "section") {
-    where.chapter = scope.chapter;
-    where.section = scope.section;
+    where.chapter = chapterFilterValue(scope.chapter);
+    where.section = sectionFilterValue(scope.section);
   }
   const rows = await prisma.question.findMany({ where, select: { id: true } });
   return rows.map((r) => r.id);

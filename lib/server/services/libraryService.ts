@@ -9,6 +9,7 @@ import { fmtDate } from "@/lib/qbank/format";
 import { prisma } from "@/lib/server/db";
 import { NotFoundError } from "@/lib/server/errors";
 import { emitAnalytics } from "@/lib/server/services/attemptService";
+import { chapterFilterValue } from "@/lib/server/services/questionService";
 import type { ListItem } from "@/lib/data";
 import type { Difficulty, Prisma, QuestionType } from "@prisma/client";
 
@@ -111,7 +112,8 @@ export async function listWrongbook(params: {
   if (mastered !== undefined) where.mastered = mastered;
   // Optional V2 browse filter: restrict to one chapter via the joined question's mirror column. It
   // is a relation filter on the SAME findMany (no extra round-trip / no N+1).
-  if (chapter) where.question = { chapter };
+  // 未分类 sentinel → IS NULL, so a null-chapter bucket the browse tree shows is actually filterable.
+  if (chapter) where.question = { chapter: chapterFilterValue(chapter) };
 
   const rows = await prisma.wrongbookEntry.findMany({
     where,
@@ -203,7 +205,8 @@ export async function listFavorites(params: {
 
   const where: Prisma.FavoriteWhereInput = { userId };
   // Optional V2 browse filter: same-join relation filter on the favorited question's chapter.
-  if (chapter) where.question = { chapter };
+  // 未分类 sentinel → IS NULL, so a null-chapter bucket the browse tree shows is actually filterable.
+  if (chapter) where.question = { chapter: chapterFilterValue(chapter) };
 
   const rows = await prisma.favorite.findMany({
     where,
@@ -295,7 +298,7 @@ export async function wrongQuestionIds(params: {
     where: {
       userId,
       mastered: false,
-      question: { status: "published", ...(chapter ? { chapter } : {}) },
+      question: { status: "published", ...(chapter ? { chapter: chapterFilterValue(chapter) } : {}) },
     },
     select: { questionId: true },
     orderBy: [{ lastWrongAt: "desc" }, { questionId: "asc" }],
@@ -315,7 +318,7 @@ export async function favoriteQuestionIds(params: {
   const rows = await prisma.favorite.findMany({
     where: {
       userId,
-      question: { status: "published", ...(chapter ? { chapter } : {}) },
+      question: { status: "published", ...(chapter ? { chapter: chapterFilterValue(chapter) } : {}) },
     },
     select: { questionId: true },
     orderBy: [{ createdAt: "desc" }, { questionId: "asc" }],

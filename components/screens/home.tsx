@@ -33,7 +33,7 @@ export function HomeScreen() {
           )}</div>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button style={{ background: 'var(--pri)', border: '1px solid var(--pri)', color: '#fff', borderRadius: '8px', padding: '10px 18px', fontSize: '13.5px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap', boxShadow: '0 6px 16px rgba(45,91,255,.24)' }} onClick={v.nav.practice.go}>继续刷题<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h13M13 6l6 6-6 6" /></svg></button>
+          <button style={{ background: 'var(--pri)', border: '1px solid var(--pri)', color: '#fff', borderRadius: '8px', padding: '10px 18px', fontSize: '13.5px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap', boxShadow: '0 6px 16px rgba(45,91,255,.24)' }} onClick={v.authed ? v.nav.qbank.go : v.nav.practice.go}>继续刷题<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h13M13 6l6 6-6 6" /></svg></button>
         </div>
       </div>
 
@@ -126,7 +126,7 @@ export function HomeScreen() {
             v.recentEmpty ? (
               <div style={{ padding: '18px 0 6px', textAlign: 'center' }}>
                 <div style={{ fontSize: '13px', color: 'var(--ink3)', marginBottom: '12px' }}>暂无练习记录，去刷题吧</div>
-                <button onClick={v.nav.practice.go} style={{ background: 'var(--pri)', border: '1px solid var(--pri)', color: '#fff', borderRadius: '8px', padding: '8px 16px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>去练习</button>
+                <button onClick={v.nav.qbank.go} style={{ background: 'var(--pri)', border: '1px solid var(--pri)', color: '#fff', borderRadius: '8px', padding: '8px 16px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>去练习</button>
               </div>
             ) : (
               v.recentList.map((r, i) => (
