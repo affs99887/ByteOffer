@@ -268,9 +268,16 @@ export function adaptServerReveal(
   return out;
 }
 
-/** A library list row as it crosses the action boundary (ListItem + this user's fav state, §7.4). */
+/**
+ * A library list row as it crosses the action boundary (ListItem + this user's fav state, §7.4).
+ * chapter/section (V2) are the joined question's data-driven browse-tree columns (null when the
+ * imported question left them unset → 未分类/综合); the wrongbook/favorites screens render the tree
+ * label and filter/launch review sessions by chapter. Optional so the demo ListItem arrays still fit.
+ */
 export interface LibraryListItem extends ListItem {
   fav: boolean;
+  chapter?: string | null;
+  section?: string | null;
 }
 
 /** The practice-filter snapshot the client sends the server (ASCII keys, §7.3). */
@@ -291,6 +298,62 @@ export interface ExamStateLike {
   answers: Record<string, UserAnswer>;
 }
 
+/**
+ * SessionScope (V2 unified hub) — the data-driven target a launched session runs over. Mirrors the
+ * server SessionScope (lib/validation/exam) 1:1; defined LOCALLY here (not imported) to keep the
+ * client bundle free of the server validation module, matching this file's discipline for
+ * PublicQuestion / ExamStateLike. chapter/section are plain content strings (the browse tree), NOT
+ * enums; wrong/favorites optionally narrow to a single chapter. EXPORTED so the screens stage can
+ * type scope builders if it constructs scopes directly (the hub vals also expose pre-bound launchers).
+ */
+export type SessionScope =
+  | { kind: "all" }
+  | { kind: "chapter"; chapter: string }
+  | { kind: "section"; chapter: string; section: string }
+  | { kind: "wrong"; chapter?: string }
+  | { kind: "favorites"; chapter?: string };
+
+/** Loose mirror of the server StartSessionResult (questions loose so the action bundle assigns). */
+export interface StartSessionResultLike {
+  sessionId: string;
+  mode: "practice" | "exam";
+  questionIds: string[];
+  questions: unknown[];
+  durationSec: number | null;
+  remainingSec: number | null;
+  scopeLabel: string;
+  total: number;
+}
+
+/** Loose mirror of the server SessionStateResult (rehydrate a frozen unified session by id). */
+export interface SessionStateResultLike {
+  sessionId: string;
+  mode: "practice" | "exam";
+  status: string;
+  questionIds: string[];
+  questions: unknown[];
+  answers: Record<string, UserAnswer>;
+  remainingSec: number | null;
+  durationSec: number | null;
+  scopeLabel: string;
+}
+
+/** The UI-preference patch the client PATCHes to savePreferencesAction (every field optional, §F). */
+export interface PreferencesPatch {
+  layout?: "sidebar" | "top";
+  appTheme?: "light" | "dark";
+  sbTheme?: "light" | "dark";
+  dailyGoal?: number;
+}
+
+/** Loose mirror of the server UserPrefs (savePreferences returns the merged authoritative row). */
+export interface UserPrefsLike {
+  layout?: string;
+  appTheme?: string;
+  sbTheme?: string;
+  dailyGoal?: number;
+}
+
 export interface AppActionsBundle {
   submitAttempt?: (input: {
     questionId: string;
@@ -304,10 +367,11 @@ export interface AppActionsBundle {
     rubricTicks?: number[];
   }) => Promise<ActionResult<{ result: GradeResult }>>;
   toggleFavorite?: (input: { questionId: string }) => Promise<ActionResult<{ fav: boolean }>>;
-  listWrongbook?: (input: { cursor?: string; mastered?: boolean }) => Promise<
+  // `chapter` (V2) narrows wrongbook/favorites to one browse-tree chapter (server-side relation filter).
+  listWrongbook?: (input: { cursor?: string; mastered?: boolean; chapter?: string }) => Promise<
     ActionResult<{ items: LibraryListItem[]; nextCursor: string | null }>
   >;
-  listFavorites?: (input: { cursor?: string }) => Promise<
+  listFavorites?: (input: { cursor?: string; chapter?: string }) => Promise<
     ActionResult<{ items: LibraryListItem[]; nextCursor: string | null }>
   >;
   listRecent?: (input: { cursor?: string }) => Promise<
@@ -346,6 +410,20 @@ export interface AppActionsBundle {
   submitExam?: (input: { sessionId: string }) => Promise<ActionResult<SubmitExamResultLike>>;
   /** No-arg (`{}`) resumes the LATEST ACTIVE exam (or null); with `{sessionId}` loads that session. */
   getExamState?: (input: { sessionId?: string }) => Promise<ActionResult<ExamStateLike | null>>;
+  /**
+   * startSession (V2 unified hub) — launch a practice/exam run over a data-driven SCOPE (all /
+   * chapter / section / wrong / favorites). The server SHUFFLES + TYPE-CLUSTERS + FREEZES the set and
+   * returns the key-STRIPPED questions in the frozen order (practice: null timers; exam: countdown).
+   */
+  startSession?: (input: {
+    mode: "practice" | "exam";
+    scope: SessionScope;
+    count?: number;
+  }) => Promise<ActionResult<StartSessionResultLike>>;
+  /** Rehydrate a frozen unified session by id (ownership-scoped) — powers exam refresh-resume. */
+  getSessionState?: (input: { sessionId: string }) => Promise<ActionResult<SessionStateResultLike | null>>;
+  /** Persist a UI-preference patch (layout / themes / daily goal) to the user's row (§F). */
+  savePreferences?: (input: PreferencesPatch) => Promise<ActionResult<UserPrefsLike>>;
 }
 
 /**
@@ -389,8 +467,36 @@ export interface TagFacet {
   count: number;
 }
 
+/**
+ * Client mirror of the server BrowseStructure (§V2 hub). The data-driven 章节→小节 tree the merged
+ * 题库 hub renders. Defined locally (not imported) — same no-server-runtime discipline as StatsData.
+ * app/app/page.tsx fetches questionService.browseStructure() and injects it as initialData.browse.
+ */
+export interface BrowseSectionNode {
+  section: string;
+  count: number;
+}
+export interface BrowseChapterNode {
+  chapter: string;
+  count: number;
+  sections: BrowseSectionNode[];
+}
+export interface BrowseTree {
+  chapters: BrowseChapterNode[];
+  total: number;
+}
+
+/** Client mirror of the server UserPrefs (§F) — injected as initialData.preferences (authed). */
+export interface PreferencesData {
+  layout: "sidebar" | "top";
+  appTheme: "light" | "dark";
+  sbTheme: "light" | "dark";
+  dailyGoal: number;
+}
+
 export interface InitialData {
-  user?: { name?: string; email?: string } | null;
+  // role (V2) drives the admin-only avatar-dropdown entry (isAdmin val, §G).
+  user?: { name?: string; email?: string; role?: string } | null;
   entitlement?: { tier?: string } | null;
   /**
    * Real stats (Phase 6, §7.2). Present in AUTHED mode (from statsService.report); absent in DEMO
@@ -415,6 +521,10 @@ export interface InitialData {
   tags?: TagFacet[];
   /** First page of the user's recent practice (libraryService.listRecent) for the home 最近练习 card. */
   recentItems?: LibraryListItem[];
+  /** Data-driven browse tree (questionService.browseStructure) for the merged 题库 hub (V2, §D). */
+  browse?: BrowseTree | null;
+  /** Persisted UI prefs (prefsService.getPreferences) — seed layout/themes/goal in authed mode (§F). */
+  preferences?: PreferencesData | null;
 }
 
 export type MergeMode = "merge" | "replace";
@@ -427,7 +537,53 @@ export type ScreenKey =
   | "favorites"
   | "stats"
   | "qbank"
-  | "settings";
+  | "settings"
+  // V2: the transient UNIFIED answering screen (both 刷题 practice + 模拟面试 exam run here). No nav
+  // routes to it — it is reached by launching a scope from the hub / wrongbook / favorites, or by
+  // resuming an active exam. "practice"/"interview" stay VALID so the pre-V2 screen files still compile.
+  | "session";
+
+/**
+ * SessionState (V2) — a launched UNIFIED session (the core of the practice/exam merge). Populated by
+ * startSessionFlow from a StartSessionResult (or rehydrated by getSessionState on exam resume). The
+ * frozen `questions` are migrated to PracticeQuestion (authed → server-STRIPPED, no key/explanation);
+ * grading is ALWAYS server-authoritative (session is authed-only — demo never launches one).
+ *   PRACTICE: no timer; per-question submit stores a reveal in `reveals` (immediate 判分+解析); a
+ *     submitted question LOCKS; `submitted` flips true on 本轮完成.
+ *   EXAM: countdown from `remainingSec` (server baseline, ticked locally, auto-submit at 0);
+ *     answers saved per-change; `submitted` flips on 交卷; the whole-exam grade lands in `serverResult`.
+ */
+export interface SessionState {
+  sessionId: string;
+  mode: "practice" | "exam";
+  /** Chinese scope label (e.g. "JavaScript · 作用域与闭包" / "全部题目" / "错题复习 · CSS"). */
+  scopeLabel: string;
+  /** The frozen questions, migrated, in the locked (shuffled + type-clustered) order. */
+  questions: PracticeQuestion[];
+  questionIds: string[];
+  /** 0-based pointer into the frozen set. */
+  index: number;
+  /** User answers keyed by POSITION (0-based) in the frozen set. */
+  answers: Record<number, UserAnswer>;
+  /** Per-question server grade+reveal keyed by questionId (PRACTICE only; exam grades at submit). */
+  reveals: Record<string, PracticeReveal>;
+  /** Positions the user flagged (answer-card marker). */
+  marked: number[];
+  /** EXAM: server-baseline seconds remaining (ticked locally); null for practice (no timer). */
+  remainingSec: number | null;
+  durationSec: number | null;
+  /** PRACTICE: 本轮完成 pressed/all-answered summary. EXAM: 交卷 pressed. */
+  submitted: boolean;
+  /** EXAM: the adapted whole-exam grade (score100/correct/wrong/perQuestion); null until it lands. */
+  serverResult: ExamServerResult | null;
+  /** A per-question (practice) / whole-exam (exam) submit failure — inline retry, never a fake grade. */
+  submitError: { code: string; message: string } | null;
+  /** A submit is in flight (per-question for practice; the whole exam for exam). */
+  submitting: boolean;
+  /** EXAM: guards the at-0 auto-submit so it fires exactly once. */
+  autoSubmitted: boolean;
+  status: "active" | "submitted";
+}
 
 export interface AppState {
   screen: ScreenKey;
@@ -447,6 +603,19 @@ export interface AppState {
   /** Category overview + tag facet from the server (authed); empty in demo. */
   categories: CategoryOverviewItem[];
   tags: TagFacet[];
+  /** True iff the session user is an admin (initialData.user.role === "admin") — avatar menu (§G). */
+  isAdmin: boolean;
+  /** Data-driven browse tree for the merged 题库 hub (initialData.browse; null in demo → empty tree). */
+  browse: BrowseTree | null;
+  // ---- V2 unified session (the practice/exam merge; authed-only) ----
+  /** The active launched session, or null when none is running (on the hub / anywhere else). */
+  session: SessionState | null;
+  /** A hub/wrongbook/favorites launch (startSession) is in flight (before `session` is set). */
+  sessionLaunching: boolean;
+  /** The last launch failed (empty scope / entitlement / network) — inline error on the launcher. */
+  sessionLaunchError: { code: string; message: string } | null;
+  /** An exam refresh-resume (getSessionState) is in flight (mount rehydrate). */
+  sessionResuming: boolean;
   // practice
   pIndex: number;
   pAnswers: Record<string, UserAnswer>;
@@ -510,6 +679,8 @@ export interface AppState {
   wbLoading: boolean;
   wbError: boolean;
   wbLoadedTab: string | null;
+  /** V2 chapter filter (wrongbook/favorites tabs): null = 全部; a chapter narrows the list + review scope. */
+  wbChapter: string | null;
   /** Home 最近练习 card rows (authed: listRecent; seeded from initialData.recentItems). */
   homeRecent: LibraryListItem[];
   // settings
@@ -564,6 +735,12 @@ const INITIAL: AppState = {
   bankTotal: null,
   categories: [],
   tags: [],
+  isAdmin: false,
+  browse: null,
+  session: null,
+  sessionLaunching: false,
+  sessionLaunchError: null,
+  sessionResuming: false,
   pIndex: 0,
   pAnswers: {},
   pReveal: {},
@@ -601,6 +778,7 @@ const INITIAL: AppState = {
   wbLoading: false,
   wbError: false,
   wbLoadedTab: null,
+  wbChapter: null,
   homeRecent: [],
   setGoal: 30,
   pfTypes: { ...INITIAL_PF_TYPES },
@@ -648,10 +826,25 @@ interface Actions {
   examReset(): void;
   examStart(): void;
   setExamCount(n: number): void;
+  // V2 unified session (the practice/exam merge)
+  sessionLaunch(scope: SessionScope, mode: "practice" | "exam"): void;
+  sessionAnswer(a: UserAnswer): void;
+  sessionSubmit(): void; // practice per-question submit (server-authoritative grade)
+  sessionSelfGrade(score: 0 | 0.5 | 1, ticks?: number[]): void;
+  sessionNext(): void;
+  sessionPrev(): void;
+  sessionGoto(i: number): void;
+  sessionMark(): void;
+  sessionFinish(): void; // practice: show 本轮完成 summary
+  sessionSubmitExam(): void; // exam: 交卷 (submit-all)
+  sessionRetrySubmit(): void; // exam: retry a failed submit (idempotent)
+  sessionExit(): void; // leave the session, back to the hub
   // wrongbook / favorites / recent
   wbSetTab(t: string): void;
   wbGo(n: number): void;
   wbLoadMore(): void;
+  wbSetChapter(chapter: string | null): void; // V2 chapter filter (refetches the list)
+  wbStartReview(mode: "practice" | "exam"): void; // launch a wrong/favorites review session
   toggleFav(id: string): void;
   wbMaster(id: string): void;
   // filters (ASCII)
@@ -1036,7 +1229,10 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
       ? state.wbTab === "收藏夹"
         ? "favorites"
         : "wrongbook"
-      : cur;
+      : cur === "session"
+        ? // a launched session lives "inside" the hub — keep 题库 lit while answering.
+          "qbank"
+        : cur;
   const mk = (k: ScreenKey) => ({
     active: activeKey === k,
     inactive: activeKey !== k,
@@ -1060,8 +1256,10 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
       wrongbook: { n: "04", t: "错题本 · 收藏夹" },
       favorites: { n: "05", t: "错题本 · 收藏夹" },
       stats: { n: "07", t: "数据统计" },
-      qbank: { n: "06", t: "题库 · 导入导出" },
+      qbank: { n: "06", t: "题库 · 章节练习" },
       settings: { n: "08", t: "设置" },
+      // V2 unified answering screen — the header title is overridden by the session scope label below.
+      session: { n: "02", t: "刷题 · 模拟面试" },
     } as Record<ScreenKey, { n: string; t: string }>
   )[cur];
 
@@ -1249,10 +1447,10 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
       return li;
     });
 
-  // The current wrongbook-tab source, unified to (ListItem & {fav}). AUTHED: authoritative server
-  // rows (fav is joined server-side). DEMO: projection (+ demo-array fallback only when empty), with
-  // fav from the optimistic local wbFav map.
-  const wbSource: (ListItem & { fav: boolean })[] = serverSubmit
+  // The current wrongbook-tab source, unified to LibraryListItem (fav + optional chapter/section).
+  // AUTHED: authoritative server rows (fav + chapter/section joined server-side). DEMO: projection (+
+  // demo-array fallback only when empty), with fav from the optimistic local wbFav map (no chapter).
+  const wbSource: LibraryListItem[] = serverSubmit
     ? state.wbItems
     : (state.wbTab === "收藏夹"
         ? favList.length
@@ -1267,24 +1465,59 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
             : wrongItems
       ).map((it) => ({ ...it, fav: !!state.wbFav[it.id] }));
 
-  const wbList = wbSource.map((it) => ({
-    ...it,
-    diffS: diffStyle(it.diff),
-    diffChip: diffChip(it.diff),
-    typeChip: typeChipStyle(),
-    fav: it.fav,
-    favInv: !it.fav,
-    onFav: () => a.toggleFav(it.id),
-    // 「标记已掌握」— wrongbook tab only (masterWrong removes the row). No by-id 重做 backend exists,
-    // so nothing is exposed for a 重做 button (screens drop it).
-    onMaster: () => a.wbMaster(it.id),
-    canMaster: state.wbTab === "错题本",
-    meta:
-      state.wbTab === "错题本"
-        ? "错误 " + it.wrong + " 次 · 上次错误 " + it.last
-        : it.last,
-  }));
+  const wbList = wbSource.map((it) => {
+    // V2 browse-tree label (章·节). Null columns bucket as 未分类/综合 (mirrors browseStructure).
+    const chapter = it.chapter ?? null;
+    const section = it.section ?? null;
+    const chapterLabel = chapter ?? "未分类";
+    const sectionLabel = section ?? "综合";
+    return {
+      ...it,
+      diffS: diffStyle(it.diff),
+      diffChip: diffChip(it.diff),
+      typeChip: typeChipStyle(),
+      fav: it.fav,
+      favInv: !it.fav,
+      onFav: () => a.toggleFav(it.id),
+      // 「标记已掌握」— wrongbook tab only (masterWrong removes the row). No by-id 重做 backend exists,
+      // so nothing is exposed for a 重做 button (screens drop it).
+      onMaster: () => a.wbMaster(it.id),
+      canMaster: state.wbTab === "错题本",
+      // V2: expose the row's chapter/section so the screen renders "章 · 节" (§E). raw + combined.
+      chapter,
+      section,
+      chapterLabel,
+      sectionLabel,
+      chapterSection: `${chapterLabel} · ${sectionLabel}`,
+      meta:
+        state.wbTab === "错题本"
+          ? "错误 " + it.wrong + " 次 · 上次错误 " + it.last
+          : it.last,
+    };
+  });
   const wbEmpty = wbList.length === 0;
+
+  // V2 chapter FILTER (§E) — wrongbook/favorites tabs. Options are pulled from the (fixed) browse tree
+  // so every chapter is selectable even when the current page shows only a few; the active option
+  // narrows the list refetch AND the review-session scope. Recent tab has no chapter filter.
+  const wbChapterOptions = [
+    {
+      chapter: null as string | null,
+      label: "全部章节",
+      active: state.wbChapter === null,
+      go: () => a.wbSetChapter(null),
+    },
+    ...(state.browse?.chapters ?? []).map((ch) => ({
+      chapter: ch.chapter as string | null,
+      label: ch.chapter,
+      count: ch.count,
+      active: state.wbChapter === ch.chapter,
+      go: () => a.wbSetChapter(ch.chapter),
+    })),
+  ];
+  // The 开始复习 launchers honor the active tab + chapter filter (wrong vs favorites scope).
+  const wbReviewMode = state.wbTab === "收藏夹" ? "favorites" : "wrong";
+  const wbCanReview = (state.wbTab === "错题本" || state.wbTab === "收藏夹") && !wbEmpty;
 
   // Home 最近练习 card (top-level recentList val, §E). AUTHED: real listRecent rows. DEMO: the
   // bank∩progress projection (demo-array fallback keeps /demo non-empty).
@@ -1458,6 +1691,118 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
   const statTodayDeltaAttempts = deltaValid ? lastDay!.attempts - prevDay!.attempts : null;
   const statAccuracyDelta = deltaValid ? lastDay!.accuracyPct - prevDay!.accuracyPct : null;
 
+  // ============================================================
+  //  V2 UNIFIED SESSION (§C) — the answering screen (刷题 practice + 模拟面试 exam share it).
+  // ============================================================
+  // The session is AUTHED-ONLY (startSession requires the action) so grading is always server-
+  // authoritative here — no demo dual-mode branch. When `state.session` is null (on the hub or in
+  // demo) every val below is a coherent empty default so the screen renders nothing / an empty shell.
+  const sess = state.session;
+  const sHasSession = !!sess;
+  const sIsPractice = sess?.mode === "practice";
+  const sIsExam = sess?.mode === "exam";
+  const sTotal = sess ? sess.questions.length : 0;
+  const sIndex = sess ? Math.min(Math.max(0, sess.index), Math.max(0, sTotal - 1)) : 0;
+  const sQ: PracticeQuestion | undefined = sess && sTotal > 0 ? sess.questions[sIndex] : undefined;
+  const sAnswer = sess ? sess.answers[sIndex] : undefined;
+  const sReveal = sess && sQ ? sess.reveals[sQ.id] : undefined; // practice per-question reveal
+  const sRevealed = sReveal?.revealed;
+  const sShownGrade = sReveal?.result; // practice: the grade shown once the question is submitted
+  const sLocked = sIsPractice && !!sReveal; // a submitted practice question locks (no re-submit)
+  const sAnsRight = sShownGrade?.status === "correct";
+  const sAnsWrong = sShownGrade?.status === "incorrect";
+  const sPartial = sShownGrade?.status === "partial";
+
+  // Field props (mirror pFieldProps §5.4). PRACTICE surfaces the graded state + reveal once submitted;
+  // EXAM renders an ungraded field while answering (the grade lands only in the results after 交卷).
+  const sFieldProps = sQ
+    ? {
+        question: sQ as QuestionRecord,
+        value: sAnswer,
+        graded: sIsPractice ? sShownGrade : undefined,
+        reveal: sIsPractice ? sRevealed : undefined,
+        onChange: a.sessionAnswer,
+        onSelfGrade: a.sessionSelfGrade,
+      }
+    : undefined;
+  const sAna =
+    sQ && sIsPractice ? toAna(sQ, sRevealed) : { explain: "", points: [], pitfalls: [], related: [], ai: "" };
+
+  // FLAT answer card — 1..N in the frozen (server type-clustered) order, NO per-type group boxes (§C).
+  const sessionCard = sess
+    ? sess.questions.map((_q, i) => ({
+        n: i + 1,
+        current: i === sIndex,
+        answered: sess.answers[i] !== undefined,
+        marked: sess.marked.includes(i),
+        go: () => a.sessionGoto(i),
+      }))
+    : [];
+
+  const sAnsweredCount = sess ? Object.keys(sess.answers).length : 0;
+  const sUnanswered = Math.max(0, sTotal - sAnsweredCount);
+  const sSubmittedCount = sess ? Object.keys(sess.reveals).length : 0; // practice: graded-so-far
+  let sCorrectCount = 0;
+  if (sess) for (const r of Object.values(sess.reveals)) if (r.result.status === "correct") sCorrectCount++;
+  const sProgressPct = sTotal > 0 ? Math.round((sAnsweredCount / sTotal) * 100) : 0;
+
+  // Exam clock + whole-exam results.
+  const sRemain = sess?.remainingSec ?? null;
+  const sServer = sess?.serverResult ?? null;
+  const sResultReady = sIsExam && !!sServer;
+  const sServerPending = sIsExam && !!sess?.submitted && sServer === null && !sess?.submitError;
+  // Per-question exam results table (scored together, §C) — aligned to the frozen order.
+  const sResultRows =
+    sess && sIsExam && sServer
+      ? sess.questions.map((qq, i) => {
+          const per = sServer.perQuestion.find((p) => p.questionId === qq.id);
+          const status = per?.result.status;
+          return {
+            n: i + 1,
+            id: qq.id,
+            type: TYPE_LABEL[qq.type],
+            q: stem(qq),
+            diff: DIFF_LABEL[qq.difficulty],
+            diffChip: diffChip(DIFF_LABEL[qq.difficulty]),
+            typeChip: typeChipStyle(),
+            status,
+            right: status === "correct",
+            wrong: status === "incorrect",
+            partial: status === "partial",
+            yourAns: userAnswerText(qq, sess.answers[i]),
+            correct: correctAnswerText(qq, per?.revealed),
+            go: () => a.sessionGoto(i),
+          };
+        })
+      : [];
+
+  // ============================================================
+  //  V2 HUB (§D) — the merged 题库 browse tree + per-node scope launchers.
+  // ============================================================
+  const browse = state.browse ?? { chapters: [], total: 0 };
+  // Each node carries PRE-BOUND practice/exam launchers so the hub screen just wires onClick (no need
+  // to construct a SessionScope itself). `hubStartPractice/Exam` (scope→launch) are also exposed for
+  // callers that build scopes directly.
+  const mkLaunch = (scope: SessionScope) => ({
+    startPractice: () => a.sessionLaunch(scope, "practice"),
+    startExam: () => a.sessionLaunch(scope, "exam"),
+  });
+  const hubTree = {
+    total: browse.total,
+    all: { count: browse.total, ...mkLaunch({ kind: "all" }) },
+    chapters: browse.chapters.map((ch) => ({
+      chapter: ch.chapter,
+      count: ch.count,
+      ...mkLaunch({ kind: "chapter", chapter: ch.chapter }),
+      sections: ch.sections.map((secNode) => ({
+        section: secNode.section,
+        count: secNode.count,
+        ...mkLaunch({ kind: "section", chapter: ch.chapter, section: secNode.section }),
+      })),
+    })),
+  };
+  const hubEmpty = browse.total === 0;
+
   return {
     // ---- 3b-2 passthrough: real identity for the settings/header (no derivation change) ----
     user: state.user,
@@ -1490,14 +1835,13 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
     layoutLabel: layout === "sidebar" ? "侧边栏" : "顶部导航",
     sbLabel: sbTheme === "dark" ? "深色" : "浅色",
     appLabel: state.appTheme === "dark" ? "深色" : "浅色",
+    // V2 nav MERGE (§B): 6 items — 刷题/模拟面试 are gone (they merge into the 题库 hub → session).
     mobileItems: (
       [
         ["home", "首页"],
-        ["practice", "刷题"],
-        ["interview", "模拟面试"],
+        ["qbank", "题库"],
         ["wrongbook", "错题本"],
         ["favorites", "收藏夹"],
-        ["qbank", "题库"],
         ["stats", "数据统计"],
         ["settings", "设置"],
       ] as [ScreenKey, string][]
@@ -1537,6 +1881,10 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
     isStats: cur === "stats",
     isQbank: cur === "qbank",
     isSettings: cur === "settings",
+    // V2: the unified answering screen (main-area routes <SessionScreen /> on this, next stage).
+    isSession: cur === "session",
+    // V2: admin-only avatar-dropdown entry (headers) — true iff the session user is an admin (§G).
+    isAdmin: state.isAdmin,
 
     // practice
     pHasQ: hasQ,
@@ -1808,6 +2156,110 @@ function computeVals(state: AppState, a: Actions, serverSubmit: boolean) {
     goalValue: state.setGoal,
     goalInc: () => a.setGoal(state.setGoal + 5),
     goalDec: () => a.setGoal(state.setGoal - 5),
+
+    // ========================================================
+    //  V2 UNIFIED SESSION (§C) — consumed by the new <SessionScreen>
+    // ========================================================
+    sessionActive: sHasSession,
+    sessionMode: sess?.mode ?? null,
+    sessionIsPractice: sIsPractice,
+    sessionIsExam: sIsExam,
+    sessionScopeLabel: sess?.scopeLabel ?? "",
+    sessionTotal: sTotal,
+    sessionIndex: sIndex,
+    sessionNo: sTotal > 0 ? sIndex + 1 : 0,
+    sessionHasQ: !!sQ,
+    sessionQ: sQ
+      ? { id: sQ.id, type: TYPE_LABEL[sQ.type], q: stem(sQ), diff: DIFF_LABEL[sQ.difficulty] }
+      : { id: "", type: "", q: "本轮暂无题目。", diff: "" },
+    sessionRecord: sQ,
+    sessionFieldProps: sFieldProps,
+    sessionDiffS: sQ ? diffStyle(DIFF_LABEL[sQ.difficulty]) : diffStyle("中等"),
+    sessionDiffChip: sQ ? diffChip(DIFF_LABEL[sQ.difficulty]) : diffChip("中等"),
+    sessionTypeChip: typeChipStyle(),
+    sessionIsMulti: sQ?.type === "multiple_choice",
+    // PRACTICE per-question feedback + lock (immediate 判分+解析 from the server reveal).
+    sessionShownGrade: sIsPractice ? sShownGrade : undefined,
+    sessionAnsRight: sAnsRight,
+    sessionAnsWrong: sAnsWrong,
+    sessionPartial: sPartial,
+    sessionLocked: sLocked,
+    sessionAna: sAna,
+    sessionAnaPoints: sAna.points.map((t, i) => ({ i: i + 1, t })),
+    sessionYourAns: sQ ? userAnswerText(sQ, sAnswer) : "未作答",
+    sessionCorrect: sQ && sIsPractice && sRevealed ? correctAnswerText(sQ, sRevealed) : "",
+    // Submit state (practice per-question / exam whole-exam) — inline error + retry, never a fake grade.
+    sessionSubmitting: !!sess?.submitting,
+    sessionSubmitError: sess?.submitError ?? null,
+    sessionCanSubmit: sIsPractice && !!sAnswer && !sReveal && !sess?.submitting,
+    // Fav — reuse the global pFav map + the existing server toggle on the current session question.
+    sessionFav: sQ ? !!state.pFav[sQ.id] : false,
+    sessionFavInv: sQ ? !state.pFav[sQ.id] : true,
+    sessionToggleFav: () => sQ && a.pToggleFav(sQ.id),
+    // Progress within the frozen set (real counts — no fabricated totals).
+    sessionAnsweredCount: sAnsweredCount,
+    sessionUnanswered: sUnanswered,
+    sessionSubmittedCount: sSubmittedCount,
+    sessionCorrectCount: sCorrectCount,
+    sessionProgressPct: sProgressPct,
+    sessionBarStyle: css({
+      width: sProgressPct + "%",
+      height: "100%",
+      background: "var(--pri)",
+      borderRadius: "6px",
+      transition: "width .3s",
+    }),
+    // FLAT answer card (1..N, frozen order, no type grouping).
+    sessionCard,
+    sessionMarkedCur: sess ? sess.marked.includes(sIndex) : false,
+    // EXAM clock + results.
+    sessionTime: fmtTime(sRemain ?? sess?.durationSec ?? 0),
+    sessionLow: sRemain != null && sRemain < 600,
+    sessionRemain: sRemain,
+    sessionDurationSec: sess?.durationSec ?? null,
+    sessionSubmitted: !!sess?.submitted,
+    sessionServerResult: sServer,
+    sessionScore100: sServer?.score100 ?? 0,
+    sessionExamCorrect: sServer?.correct ?? 0,
+    sessionExamWrong: sServer?.wrong ?? 0,
+    sessionResultReady: sResultReady,
+    // True while the authoritative exam grade is still resolving (or failed) — withhold the score badge.
+    sessionServerPending: sServerPending,
+    sessionResultRows: sResultRows,
+    // Handlers.
+    sessionSubmitDo: a.sessionSubmit,
+    sessionSelfGradeDo: a.sessionSelfGrade,
+    sessionNext: a.sessionNext,
+    sessionPrev: a.sessionPrev,
+    sessionGoto: a.sessionGoto,
+    sessionMark: a.sessionMark,
+    sessionFinishDo: a.sessionFinish,
+    sessionSubmitExamDo: a.sessionSubmitExam,
+    sessionRetryDo: a.sessionRetrySubmit,
+    sessionExitDo: a.sessionExit,
+
+    // ========================================================
+    //  V2 HUB (§D) — consumed by the rewritten 题库 (hub) screen
+    // ========================================================
+    browseTree: browse,
+    hubTree,
+    hubEmpty,
+    hubTotal: browse.total,
+    hubLaunching: state.sessionLaunching,
+    hubLaunchError: state.sessionLaunchError,
+    hubStartPractice: (scope: SessionScope) => a.sessionLaunch(scope, "practice"),
+    hubStartExam: (scope: SessionScope) => a.sessionLaunch(scope, "exam"),
+
+    // ========================================================
+    //  V2 wrongbook/favorites chapter filter + review launch (§E)
+    // ========================================================
+    wbChapter: state.wbChapter,
+    wbChapterOptions,
+    wbCanReview,
+    wbReviewMode,
+    wbStartReview: (mode: "practice" | "exam") => a.wbStartReview(mode),
+    wbReviewPractice: () => a.wbStartReview("practice"),
+    wbReviewExam: () => a.wbStartReview("exam"),
   };
 }
 
@@ -1879,6 +2331,9 @@ export function AppProvider({
     // Seed the fav state from the injected progress so stars are correct on first paint (§C fav回填).
     const pFav: Record<string, boolean> = {};
     for (const [id, p] of Object.entries(progress)) if (p?.fav) pFav[id] = true;
+    // §F: seed the UI prefs from the persisted server row (authed). Absent (demo / no DB) → the
+    // INITIAL defaults, which mirror prefsService.DEFAULT_PREFS so an un-persisted client agrees.
+    const prefs = initialData?.preferences ?? null;
     return {
       ...INITIAL,
       user: initialData?.user ?? null,
@@ -1892,6 +2347,15 @@ export function AppProvider({
       categories: initialData?.categories ?? [],
       tags: initialData?.tags ?? [],
       homeRecent: initialData?.recentItems ?? [],
+      // §G: admin-only avatar-dropdown entry gate (role comes from the session, injected by the RSC).
+      isAdmin: initialData?.user?.role === "admin",
+      // §D: the data-driven browse tree for the hub (null in demo → the hub shows an empty tree).
+      browse: initialData?.browse ?? null,
+      // §F: persisted layout / themes / daily goal (fall back to the INITIAL defaults in demo).
+      layout: prefs?.layout ?? INITIAL.layout,
+      sbTheme: prefs?.sbTheme ?? INITIAL.sbTheme,
+      appTheme: prefs?.appTheme ?? INITIAL.appTheme,
+      setGoal: prefs?.dailyGoal ?? INITIAL.setGoal,
       // AUTHED default: "all" difficulties (the entry reset-fetch spans the whole published bank);
       // DEMO keeps "medium" so /demo is byte-for-byte unchanged.
       pfDiff: authedInit ? "all" : "medium",
@@ -1913,6 +2377,35 @@ export function AppProvider({
     (p: Partial<AppState> | ((s: AppState) => Partial<AppState>)) =>
       setState((s) => ({ ...s, ...(typeof p === "function" ? p(s) : p) })),
     [],
+  );
+
+  // Patch the ACTIVE session substate (§C). A no-op when no session is running (guards every session
+  // action against a race where the session was exited between an async submit's start and landing).
+  const patchSession = useCallback(
+    (p: Partial<SessionState> | ((sess: SessionState) => Partial<SessionState>)) =>
+      setState((s) =>
+        s.session ? { ...s, session: { ...s.session, ...(typeof p === "function" ? p(s.session) : p) } } : s,
+      ),
+    [],
+  );
+
+  // §F prefs persistence: fire-and-forget PATCH to the server (best-effort). No-op in demo (no action).
+  const savePrefs = useCallback(
+    (p: PreferencesPatch) => {
+      const act = serverActions?.savePreferences;
+      if (!act) return;
+      act(p).catch(() => undefined);
+    },
+    [serverActions],
+  );
+  // Debounce the daily-goal save (the stepper fires rapidly) so we don't PATCH on every click.
+  const goalSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveGoalDebounced = useCallback(
+    (goal: number) => {
+      if (goalSaveTimer.current) clearTimeout(goalSaveTimer.current);
+      goalSaveTimer.current = setTimeout(() => savePrefs({ dailyGoal: goal }), 500);
+    },
+    [savePrefs],
   );
 
   // Local (standalone/demo) grade — used only when NO server submit is wired. The demo bank carries
@@ -2047,10 +2540,14 @@ export function AppProvider({
       let req:
         | Promise<ActionResult<{ items: LibraryListItem[]; nextCursor: string | null }>>
         | undefined;
-      const arg = cursor ? { cursor } : {};
-      if (tab === "收藏夹" && serverActions?.listFavorites) req = serverActions.listFavorites(arg);
-      else if (tab === "最近练习" && serverActions?.listRecent) req = serverActions.listRecent(arg);
-      else if (serverActions?.listWrongbook) req = serverActions.listWrongbook(arg);
+      const cursorArg = cursor ? { cursor } : {};
+      // V2 (§E): narrow wrongbook/favorites to the active chapter filter (recent has no chapter arg).
+      const chapter = s.wbChapter ?? undefined;
+      const chArg = chapter ? { chapter } : {};
+      if (tab === "收藏夹" && serverActions?.listFavorites)
+        req = serverActions.listFavorites({ ...cursorArg, ...chArg });
+      else if (tab === "最近练习" && serverActions?.listRecent) req = serverActions.listRecent(cursorArg);
+      else if (serverActions?.listWrongbook) req = serverActions.listWrongbook({ ...cursorArg, ...chArg });
       if (!req) return;
       setState((p) => ({
         ...p,
@@ -2146,8 +2643,83 @@ export function AppProvider({
     [serverActions],
   );
 
-  // Hydrate the persisted daily goal (§F: no server pref exists → localStorage) on mount.
+  // V2 (§C): submitExam for the UNIFIED session → adapt the authoritative whole-exam grade into
+  // session.serverResult (mirrors runSubmitExam but writes the session substate). On success the
+  // stored exam-resume id is cleared (the session is graded/done); on failure session.submitError is
+  // set (the result screen offers 重试 via sessionRetrySubmit). submitting is cleared either way.
+  const runSessionSubmitExam = useCallback(
+    (sid: string) => {
+      const submitAct = serverActions?.submitExam;
+      if (!submitAct) return;
+      submitAct({ sessionId: sid })
+        .then((r) => {
+          if (r.ok) {
+            const typeById = (qid: string) => stateRef.current.session?.questions.find((x) => x.id === qid)?.type;
+            const partTypesById = (qid: string) => {
+              const rec = stateRef.current.session?.questions.find((x) => x.id === qid);
+              return rec?.type === "scenario"
+                ? Object.fromEntries((rec as ScenarioQ).parts.map((p) => [p.id, p.type]))
+                : undefined;
+            };
+            const adapted = adaptExamSubmit(r.data, typeById, partTypesById);
+            try {
+              localStorage.removeItem("bo_session_exam");
+            } catch {}
+            setState((prev) =>
+              prev.session
+                ? {
+                    ...prev,
+                    session: {
+                      ...prev.session,
+                      serverResult: adapted,
+                      submitError: null,
+                      submitting: false,
+                      status: "submitted",
+                    },
+                  }
+                : prev,
+            );
+          } else {
+            setState((prev) =>
+              prev.session
+                ? {
+                    ...prev,
+                    session: {
+                      ...prev.session,
+                      submitting: false,
+                      submitError: {
+                        code: r.error.code,
+                        message: mapErrorToMessage(r.error.code, r.error.message),
+                      },
+                    },
+                  }
+                : prev,
+            );
+          }
+        })
+        .catch(() =>
+          setState((prev) =>
+            prev.session
+              ? {
+                  ...prev,
+                  session: {
+                    ...prev.session,
+                    submitting: false,
+                    submitError: { code: "INTERNAL", message: mapErrorToMessage("INTERNAL") },
+                  },
+                }
+              : prev,
+          ),
+        );
+    },
+    [serverActions],
+  );
+
+  // Hydrate the persisted daily goal on mount — DEMO ONLY (§F). In AUTHED mode the goal is seeded from
+  // the server UserPreference row (initialData.preferences) and persisted via savePreferences, so the
+  // localStorage value is NOT authoritative there (a stale local value must never override the DB).
   useEffect(() => {
+    if (serverSubmit) return;
     try {
       const v = localStorage.getItem("bo_daily_goal");
       if (v != null) {
@@ -2155,7 +2727,7 @@ export function AppProvider({
         if (Number.isFinite(n) && n > 0) setState((p) => ({ ...p, setGoal: n }));
       }
     } catch {}
-  }, []);
+  }, [serverSubmit]);
 
   // DEMO exam: seed the local countdown from localStorage (authed seeds from the server session).
   useEffect(() => {
@@ -2167,6 +2739,69 @@ export function AppProvider({
     } catch {}
     setState((st) => ({ ...st, examRemain: r }));
   }, [serverSubmit]);
+
+  // V2 EXAM REFRESH-RESUME (§C). A refresh drops the in-memory session, so on mount (authed) we look
+  // for a persisted exam session id (bo_session_exam) and rehydrate it via getSessionState — the SAME
+  // frozen questions + saved answers + server-authoritative monotonic clock — then land on the session
+  // screen. Runs ONCE (guarded) so it never yanks the user back after they deliberately navigate away.
+  // Practice needs NO cross-refresh resume (a fresh session is legitimate), so only exam ids are stored.
+  const resumeAttemptedRef = useRef(false);
+  useEffect(() => {
+    if (!serverSubmit || resumeAttemptedRef.current) return;
+    resumeAttemptedRef.current = true;
+    const getState = serverActions?.getSessionState;
+    if (!getState) return;
+    let storedId: string | null = null;
+    try {
+      storedId = localStorage.getItem("bo_session_exam");
+    } catch {}
+    if (!storedId) return;
+    setState((p) => ({ ...p, sessionResuming: true }));
+    getState({ sessionId: storedId })
+      .then((r) => {
+        if (r.ok && r.data && r.data.mode === "exam" && r.data.status === "active") {
+          const data = r.data;
+          const migrated = data.questions.map((qq) => migrate(qq) as PracticeQuestion);
+          // Rebuild the POSITION-keyed answer sheet from the server's questionId-keyed answers.
+          const answersByIdx: Record<number, UserAnswer> = {};
+          migrated.forEach((qq, i) => {
+            const saved = data.answers[qq.id];
+            if (saved) answersByIdx[i] = saved;
+          });
+          setState((p) => ({
+            ...p,
+            sessionResuming: false,
+            screen: "session",
+            session: {
+              sessionId: data.sessionId,
+              mode: "exam",
+              scopeLabel: data.scopeLabel,
+              questions: migrated,
+              questionIds: data.questionIds,
+              index: 0,
+              answers: answersByIdx,
+              reveals: {},
+              marked: [],
+              remainingSec: data.remainingSec,
+              durationSec: data.durationSec,
+              submitted: false,
+              serverResult: null,
+              submitError: null,
+              submitting: false,
+              autoSubmitted: false,
+              status: "active",
+            },
+          }));
+        } else {
+          // Nothing to resume (submitted / expired / not an exam) → drop the stale id, stay on home.
+          try {
+            localStorage.removeItem("bo_session_exam");
+          } catch {}
+          setState((p) => ({ ...p, sessionResuming: false }));
+        }
+      })
+      .catch(() => setState((p) => ({ ...p, sessionResuming: false })));
+  }, [serverSubmit, serverActions]);
 
   // Reset the per-question timer whenever the current practice question changes (or on entry) so the
   // measured durationMs reflects only the time THIS question was on screen (§B studyMs fix).
@@ -2288,6 +2923,20 @@ export function AppProvider({
   useEffect(() => {
     const timer = setInterval(() => {
       const s = stateRef.current;
+      // V2 unified session exam countdown (§C): tick session.remainingSec locally; AUTO-SUBMIT once at
+      // 0 (autoSubmitted guard). The clock is UX-only (the server clamps monotonically on save + on
+      // getSessionState resume), so it is NOT persisted to localStorage. Runs only on the session screen.
+      const sess = s.session;
+      if (s.screen === "session" && sess && sess.mode === "exam" && !sess.submitted) {
+        if (sess.remainingSec == null) return;
+        const nr = Math.max(0, sess.remainingSec - 1);
+        setState((p) => (p.session ? { ...p, session: { ...p.session, remainingSec: nr } } : p));
+        if (nr === 0 && !sess.autoSubmitted) {
+          setState((p) => (p.session ? { ...p, session: { ...p.session, autoSubmitted: true } } : p));
+          actionsRef.current?.sessionSubmitExam();
+        }
+        return;
+      }
       if (s.screen !== "interview" || s.examSubmitted) return;
       if (serverSubmit) {
         if (s.examRemain == null) return; // not yet seeded from the server
@@ -2325,32 +2974,52 @@ export function AppProvider({
     homeRecentLoad();
   }, [serverSubmit, state.screen, homeRecentLoad]);
 
-  // Global shortcuts (§G): Cmd/Ctrl+1..8 → the 8 nav screens; on the practice screen Enter=submit,
-  // →=next, ←=prev. Skipped while focus is in an input/textarea/contentEditable.
+  // Global shortcuts (§B/§G): Cmd/Ctrl+1..6 → the V2 6 nav screens; on the answering screen (or the
+  // legacy practice screen) Enter=submit, →=next, ←=prev. Skipped while focus is in an input/textarea/
+  // contentEditable. The nav map is the 6-item V2 set (刷题/模拟面试 merged into the 题库 hub).
   useEffect(() => {
-    const NAV: ScreenKey[] = [
-      "home",
-      "practice",
-      "interview",
-      "wrongbook",
-      "favorites",
-      "qbank",
-      "stats",
-      "settings",
-    ];
+    const NAV: ScreenKey[] = ["home", "qbank", "wrongbook", "favorites", "stats", "settings"];
     const onKey = (e: KeyboardEvent) => {
       const el = document.activeElement as HTMLElement | null;
       const inField = !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
       if ((e.metaKey || e.ctrlKey) && !e.altKey && !inField) {
         const n = parseInt(e.key, 10);
-        if (n >= 1 && n <= 8) {
+        if (n >= 1 && n <= NAV.length) {
           e.preventDefault();
           actionsRef.current?.go(NAV[n - 1]);
         }
         return;
       }
       if (e.metaKey || e.ctrlKey || e.altKey || inField) return;
-      if (stateRef.current.screen !== "practice") return;
+      const screen = stateRef.current.screen;
+      // V2 unified session screen: Enter submits the current PRACTICE question; arrows navigate.
+      if (screen === "session") {
+        const s = stateRef.current;
+        const sess = s.session;
+        if (!sess) return;
+        if (e.key === "Enter") {
+          const q = sess.questions[sess.index];
+          if (
+            sess.mode === "practice" &&
+            q &&
+            sess.answers[sess.index] &&
+            !sess.reveals[q.id] &&
+            !sess.submitting
+          ) {
+            e.preventDefault();
+            actionsRef.current?.sessionSubmit();
+          }
+        } else if (e.key === "ArrowRight") {
+          e.preventDefault();
+          actionsRef.current?.sessionNext();
+        } else if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          actionsRef.current?.sessionPrev();
+        }
+        return;
+      }
+      // Legacy practice screen (no nav routes here in V2, kept working for the un-migrated screen).
+      if (screen !== "practice") return;
       if (e.key === "Enter") {
         const s = stateRef.current;
         const { q } = currentPractice(s, serverSubmit);
@@ -2379,9 +3048,24 @@ export function AppProvider({
           if (k === "favorites") st.wbTab = "收藏夹";
           return st;
         }),
-      toggleLayout: () => patch((s) => ({ layout: s.layout === "sidebar" ? "top" : "sidebar" })),
-      toggleTheme: () => patch((s) => ({ sbTheme: s.sbTheme === "dark" ? "light" : "dark" })),
-      toggleAppTheme: () => patch((s) => ({ appTheme: s.appTheme === "dark" ? "light" : "dark" })),
+      // §F: the appearance toggles ALSO persist to the server row (fire-and-forget; no-op in demo).
+      // Compute the next value off stateRef (not inside the setState updater) so savePrefs is called
+      // exactly once with the new value — no side effect inside the reducer (StrictMode-safe).
+      toggleLayout: () => {
+        const next: "sidebar" | "top" = stateRef.current.layout === "sidebar" ? "top" : "sidebar";
+        patch({ layout: next });
+        savePrefs({ layout: next });
+      },
+      toggleTheme: () => {
+        const next: ThemeMode = stateRef.current.sbTheme === "dark" ? "light" : "dark";
+        patch({ sbTheme: next });
+        savePrefs({ sbTheme: next });
+      },
+      toggleAppTheme: () => {
+        const next: ThemeMode = stateRef.current.appTheme === "dark" ? "light" : "dark";
+        patch({ appTheme: next });
+        savePrefs({ appTheme: next });
+      },
       toggleCollapse: () => patch((s) => ({ collapsed: !s.collapsed })),
       openNav: () => patch({ mobileNav: true }),
       closeNav: () => patch({ mobileNav: false }),
@@ -2669,13 +3353,247 @@ export function AppProvider({
         patch({ examCount: Math.max(1, Math.min(200, Math.round(n))) });
       },
 
+      // ---------- V2 unified session (§C) ----------
+      // Launch a practice/exam session over a data-driven scope. AUTHED-ONLY (no startSession action in
+      // demo → no-op, so the demo 题库/刷题/面试 keep their current behavior). Migrates the frozen
+      // questions, seeds the session substate, and navigates to the answering screen. Exam persists its
+      // sessionId to localStorage for refresh-resume; any launch first clears a stale stored exam id.
+      sessionLaunch: (scope, mode) => {
+        const startAct = serverActions?.startSession;
+        if (!startAct) return;
+        if (stateRef.current.sessionLaunching) return; // guard a double-launch
+        try {
+          localStorage.removeItem("bo_session_exam");
+        } catch {}
+        patch({ sessionLaunching: true, sessionLaunchError: null });
+        startAct({ mode, scope })
+          .then((r) => {
+            if (r.ok) {
+              const migrated = r.data.questions.map((qq) => migrate(qq) as PracticeQuestion);
+              if (r.data.mode === "exam") {
+                try {
+                  localStorage.setItem("bo_session_exam", r.data.sessionId);
+                } catch {}
+              }
+              setState((p) => ({
+                ...p,
+                sessionLaunching: false,
+                sessionLaunchError: null,
+                screen: "session",
+                session: {
+                  sessionId: r.data.sessionId,
+                  mode: r.data.mode,
+                  scopeLabel: r.data.scopeLabel,
+                  questions: migrated,
+                  questionIds: r.data.questionIds,
+                  index: 0,
+                  answers: {},
+                  reveals: {},
+                  marked: [],
+                  remainingSec: r.data.remainingSec,
+                  durationSec: r.data.durationSec,
+                  submitted: false,
+                  serverResult: null,
+                  submitError: null,
+                  submitting: false,
+                  autoSubmitted: false,
+                  status: "active",
+                },
+              }));
+            } else {
+              // Empty scope (VALIDATION) surfaces the precise server message; other codes map friendly.
+              const message =
+                r.error.code === "VALIDATION"
+                  ? r.error.message || "该范围暂无可用题目。"
+                  : mapErrorToMessage(r.error.code, r.error.message);
+              patch({ sessionLaunching: false, sessionLaunchError: { code: r.error.code, message } });
+            }
+          })
+          .catch(() =>
+            patch({
+              sessionLaunching: false,
+              sessionLaunchError: { code: "INTERNAL", message: mapErrorToMessage("INTERNAL") },
+            }),
+          );
+      },
+      sessionAnswer: (ans) => {
+        const s = stateRef.current;
+        const sess = s.session;
+        if (!sess) return;
+        const q = sess.questions[sess.index];
+        if (!q) return;
+        // A submitted practice question is locked — ignore further edits (no re-submit / re-quota).
+        if (sess.mode === "practice" && sess.reveals[q.id]) return;
+        // EXAM: persist each answer server-side best-effort (survives refresh; the row submitExam
+        // grades). Fire-and-forget so a save failure (incl. post-deadline EXAM_EXPIRED) never blocks
+        // local answering. Practice grades per-question on submit, so nothing is saved here.
+        if (sess.mode === "exam") {
+          const saveAct = serverActions?.saveExamAnswer;
+          if (saveAct) {
+            saveAct({
+              sessionId: sess.sessionId,
+              questionId: q.id,
+              userAnswer: ans,
+              remainingSec: Math.max(0, sess.remainingSec ?? 0),
+            }).catch(() => undefined);
+          }
+        }
+        patchSession((cur) => ({ answers: { ...cur.answers, [cur.index]: ans }, submitError: null }));
+      },
+      sessionSubmit: () => {
+        // PRACTICE per-question submit (server-authoritative grade + reveal). Locks the question,
+        // opens the analysis, counts one toward today's goal. On failure → inline submitError (no fake
+        // grade, answer stays editable). A no-op for exam (exam submits all at once via 交卷).
+        const s = stateRef.current;
+        const sess = s.session;
+        if (!sess || sess.mode !== "practice") return;
+        const q = sess.questions[sess.index];
+        if (!q) return;
+        const ans = sess.answers[sess.index];
+        if (!ans) return;
+        if (sess.reveals[q.id]) return; // already submitted → locked
+        if (sess.submitting) return;
+        patchSession({ submitting: true, submitError: null });
+        const durationMs = Math.max(0, Date.now() - questionStartRef.current);
+        submitFn(q.id, ans, { sessionId: sess.sessionId, durationMs })
+          .then((outcome) => {
+            if (outcome.ok) {
+              const { result, revealed, attemptId } = outcome;
+              setState((prev) => {
+                if (!prev.session) return prev;
+                return {
+                  ...prev,
+                  // Overlay this session's submits so the daily-goal口径 matches practice/home/stats.
+                  pAnsweredCount: prev.pAnsweredCount + 1,
+                  session: {
+                    ...prev.session,
+                    reveals: { ...prev.session.reveals, [q.id]: { result, revealed, attemptId } },
+                    submitting: false,
+                    submitError: null,
+                  },
+                };
+              });
+            } else {
+              patchSession({
+                submitting: false,
+                submitError: {
+                  code: outcome.error.code,
+                  message: mapErrorToMessage(outcome.error.code, outcome.error.message),
+                },
+              });
+            }
+          })
+          .catch(() =>
+            patchSession({
+              submitting: false,
+              submitError: { code: "INTERNAL", message: mapErrorToMessage("INTERNAL") },
+            }),
+          );
+      },
+      sessionSelfGrade: (score, ticks) => {
+        // Subjective self-assessment for the current practice question (mirrors pSelfGrade, §5.4 /
+        // invariant #4): persist the self score server-side (independent selfScore column) via the
+        // already-created attempt, fold the returned result back into the session reveal, and record
+        // the self answer for the active button state.
+        const s = stateRef.current;
+        const sess = s.session;
+        if (!sess) return;
+        const q = sess.questions[sess.index];
+        if (!q) return;
+        const attemptId = sess.reveals[q.id]?.attemptId;
+        const selfAct = serverActions?.selfGradeAttempt;
+        if (selfAct && attemptId) {
+          selfAct({ attemptId, selfScore: score, ...(ticks ? { rubricTicks: ticks } : {}) })
+            .then((r) => {
+              if (r.ok) {
+                setState((prev) => {
+                  if (!prev.session) return prev;
+                  const cur = prev.session.reveals[q.id];
+                  if (!cur) return prev;
+                  return {
+                    ...prev,
+                    session: {
+                      ...prev.session,
+                      reveals: { ...prev.session.reveals, [q.id]: { ...cur, result: r.data.result } },
+                    },
+                  };
+                });
+              }
+            })
+            .catch(() => undefined);
+        }
+        const ans: UserAnswer = { kind: "self", selfScore: score, ...(ticks ? { rubricTicks: ticks } : {}) };
+        patchSession((cur) => ({ answers: { ...cur.answers, [cur.index]: ans } }));
+      },
+      sessionNext: () =>
+        patchSession((cur) => ({
+          index: Math.min(cur.index + 1, Math.max(0, cur.questions.length - 1)),
+        })),
+      sessionPrev: () => patchSession((cur) => ({ index: Math.max(0, cur.index - 1) })),
+      sessionGoto: (i) =>
+        patchSession((cur) => ({ index: Math.min(Math.max(0, i), Math.max(0, cur.questions.length - 1)) })),
+      sessionMark: () =>
+        patchSession((cur) => {
+          const m = cur.marked.slice();
+          const at = m.indexOf(cur.index);
+          if (at >= 0) m.splice(at, 1);
+          else m.push(cur.index);
+          return { marked: m };
+        }),
+      sessionFinish: () => patchSession({ submitted: true }), // practice: show the 本轮完成 summary
+      sessionSubmitExam: () => {
+        // EXAM 交卷 (submit-all). submitExam is the AUTHORITATIVE grader; the whole-exam result lands in
+        // session.serverResult (runSessionSubmitExam). On failure → session.submitError (retry offered),
+        // NEVER a fabricated 0/100.
+        const s = stateRef.current;
+        const sess = s.session;
+        if (!sess || sess.mode !== "exam") return;
+        if (!serverActions?.submitExam) {
+          patchSession({ submitError: { code: "INTERNAL", message: mapErrorToMessage("INTERNAL") } });
+          return;
+        }
+        patchSession({ submitted: true, submitting: true, serverResult: null, submitError: null });
+        runSessionSubmitExam(sess.sessionId);
+      },
+      sessionRetrySubmit: () => {
+        const s = stateRef.current;
+        const sess = s.session;
+        if (!sess || sess.mode !== "exam" || !serverActions?.submitExam) return;
+        patchSession({ submitting: true, serverResult: null, submitError: null });
+        runSessionSubmitExam(sess.sessionId);
+      },
+      sessionExit: () => {
+        // Leave the session → back to the hub. Clear the stored exam-resume id (the run is abandoned or
+        // finished) so a later refresh doesn't rehydrate it.
+        try {
+          localStorage.removeItem("bo_session_exam");
+        } catch {}
+        patch({ session: null, sessionLaunchError: null, screen: "qbank" });
+      },
+
       // wrongbook / favorites / recent
-      wbSetTab: (t) => patch({ wbTab: t, wbPage: 1, wbItems: [], wbCursor: null, wbLoadedTab: null }),
+      // A tab switch resets the chapter filter too (chapters differ per tab; a stale filter would hide rows).
+      wbSetTab: (t) =>
+        patch({ wbTab: t, wbPage: 1, wbItems: [], wbCursor: null, wbLoadedTab: null, wbChapter: null }),
       wbGo: (n) => patch({ wbPage: n }),
       wbLoadMore: () => {
         const s = stateRef.current;
         if (!serverSubmit || !s.wbCursor || s.wbLoading) return;
         wbLoad(s.wbTab, { reset: false });
+      },
+      // V2 (§E): set the chapter filter and refetch. Clearing wbLoadedTab re-arms the entry/refetch
+      // effect (which reads the new wbChapter from stateRef), so the list reloads narrowed to `chapter`.
+      wbSetChapter: (chapter) => patch({ wbChapter: chapter, wbItems: [], wbCursor: null, wbLoadedTab: null }),
+      // V2 (§E): launch a review SESSION over the active tab's scope (wrong/favorites), honoring the
+      // chapter filter. AUTHED-ONLY (sessionLaunch is a no-op in demo).
+      wbStartReview: (mode) => {
+        const s = stateRef.current;
+        const chapter = s.wbChapter ?? undefined;
+        const scope: SessionScope =
+          s.wbTab === "收藏夹"
+            ? { kind: "favorites", ...(chapter ? { chapter } : {}) }
+            : { kind: "wrong", ...(chapter ? { chapter } : {}) };
+        actionsRef.current?.sessionLaunch(scope, mode);
       },
       toggleFav: (id) => {
         const toggle = serverActions?.toggleFavorite;
@@ -2727,13 +3645,18 @@ export function AppProvider({
           pfCompany: false,
         }),
 
-      // settings
+      // settings — §F: AUTHED persists to the server row (debounced; the stepper fires fast); DEMO keeps
+      // the localStorage default. localStorage is NOT written in authed mode (the DB is authoritative).
       setGoal: (n) => {
         const val = Math.max(5, Math.min(500, Math.round(n)));
-        try {
-          localStorage.setItem("bo_daily_goal", String(val));
-        } catch {}
         patch({ setGoal: val });
+        if (serverSubmit) {
+          saveGoalDebounced(val);
+        } else {
+          try {
+            localStorage.setItem("bo_daily_goal", String(val));
+          } catch {}
+        }
       },
       updateUserName: (name) => patch((s) => ({ user: { ...(s.user ?? {}), name } })),
 

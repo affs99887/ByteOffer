@@ -25,6 +25,7 @@ import * as questionService from "@/lib/server/services/questionService";
 import * as statsService from "@/lib/server/services/statsService";
 import * as entitlementService from "@/lib/server/services/entitlementService";
 import * as libraryService from "@/lib/server/services/libraryService";
+import * as prefsService from "@/lib/server/services/prefsService";
 import { listTags } from "@/lib/server/qbank/tags";
 import {
   submitAttemptAction,
@@ -37,13 +38,19 @@ import {
   listRecentAction,
   masterWrongAction,
 } from "@/lib/actions/library";
-import { getQuestionForPracticeAction, startPracticeSessionAction } from "@/lib/actions/practice";
+import {
+  getQuestionForPracticeAction,
+  startPracticeSessionAction,
+  startSessionAction,
+} from "@/lib/actions/practice";
 import {
   startExamSessionAction,
   saveExamAnswerAction,
   submitExamAction,
   getExamStateAction,
+  getSessionStateAction,
 } from "@/lib/actions/exam";
+import { savePreferencesAction } from "@/lib/actions/profile";
 
 // Force dynamic rendering — this page depends on the request session (auth()); never prerender.
 export const dynamic = "force-dynamic";
@@ -136,6 +143,22 @@ async function loadInitialData(userId: string): Promise<Omit<InitialData, "user"
     /* leave progress/recentItems undefined → authed screens render honest empty states */
   }
 
+  // V2: the data-driven 章节→小节 browse tree for the merged 题库 hub (§D). Best-effort → null → the
+  // hub renders an honest empty state instead of crashing.
+  try {
+    out.browse = await questionService.browseStructure();
+  } catch {
+    /* no DB → leave browse undefined → hub shows the empty state */
+  }
+
+  // V2: persisted UI preferences (layout / themes / daily goal, §F). Absent → the client keeps its
+  // defaults (sidebar / light / dark / 30) and the first toggle persists a fresh row.
+  try {
+    out.preferences = await prefsService.getPreferences(userId);
+  } catch {
+    /* no DB → leave preferences undefined → client defaults apply */
+  }
+
   return out;
 }
 
@@ -159,7 +182,12 @@ export default async function Page() {
   const rest = await loadInitialData(userId);
 
   const initialData: InitialData = {
-    user: { name: session.user.name ?? undefined, email: session.user.email ?? undefined },
+    // role (V2) drives the admin-only avatar-dropdown entry (isAdmin val, §G).
+    user: {
+      name: session.user.name ?? undefined,
+      email: session.user.email ?? undefined,
+      role: session.user.role,
+    },
     entitlement: { tier },
     ...rest,
   };
@@ -181,6 +209,10 @@ export default async function Page() {
         saveExamAnswer: saveExamAnswerAction,
         submitExam: submitExamAction,
         getExamState: getExamStateAction,
+        // V2 unified hub: scope-based launch + refresh-resume + preference persistence.
+        startSession: startSessionAction,
+        getSessionState: getSessionStateAction,
+        savePreferences: savePreferencesAction,
       }}
     />
   );
